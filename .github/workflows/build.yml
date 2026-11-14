@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # tag'lerde Release oluşturmak için
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore QuickMedia.csproj
+
+      - name: Build
+        run: dotnet build QuickMedia.csproj -c Release --no-restore
+
+      - name: Publish (tek dosya, kurulum gerektirmez)
+        run: >
+          dotnet publish QuickMedia.csproj -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -o publish
+
+      - name: Taşınabilir zip hazırla
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item publish/QuickMedia.exe dist/
+          New-Item -ItemType File -Force dist/portable.flag | Out-Null
+          Compress-Archive -Path dist/* -DestinationPath QuickMedia-win-x64-portable.zip -Force
+
+      - name: Artifact yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickMedia-win-x64-portable
+          path: QuickMedia-win-x64-portable.zip
+
+      - name: Release oluştur (v* tag'i)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: QuickMedia-win-x64-portable.zip
+          generate_release_notes: true
