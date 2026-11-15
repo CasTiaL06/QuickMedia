@@ -52,7 +52,7 @@ public sealed class TrayService : IDisposable
         menu.Items.AddRange(new Forms.ToolStripItem[] { _toggle, _styleMenu, settings, new Forms.ToolStripSeparator(), exit });
         menu.Opening += (_, _) =>
         {
-            _toggle.ShortcutKeyDisplayString = HotkeyService.Describe(App.Settings);
+            _toggle.ShortcutKeyDisplayString = HotkeyService.Describe(HotkeyAction.Toggle);
             foreach (Forms.ToolStripMenuItem it in _styleMenu.DropDownItems)
                 it.Checked = (string?)it.Tag == FlyoutStyles.Normalize(App.Settings.FlyoutStyle);
         };

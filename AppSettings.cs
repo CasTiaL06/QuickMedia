@@ -14,6 +14,12 @@ public sealed class PlatformRule
     public int Seconds { get; set; } = 5;
 }
 
+public sealed class HotkeyBinding
+{
+    public int Modifiers { get; set; } = 1;
+    public string Key { get; set; } = "P";
+}
+
 public sealed class AppSettings
 {
     // Genel
@@ -45,9 +51,33 @@ public sealed class AppSettings
     public bool ShowVolumeControls { get; set; } = true;
     public bool ShowPlatformBadge { get; set; } = true;
 
-    // Kısayol (ModifierKeys bayrakları: Alt=1, Ctrl=2, Shift=4, Win=8)
+    // Kısayollar (ModifierKeys bayrakları: Alt=1, Ctrl=2, Shift=4, Win=8)
+    public Dictionary<string, HotkeyBinding> Hotkeys { get; set; } = new();
+
+    // Eski sürümden geçiş için (yalnızca okunur)
     public int HotkeyModifiers { get; set; } = 1;
     public string HotkeyKey { get; set; } = "P";
+
+    public static HotkeyBinding DefaultHotkey(HotkeyAction a) => a switch
+    {
+        HotkeyAction.PlayPause => new HotkeyBinding { Modifiers = 3, Key = "Space" },  // Ctrl+Alt+Boşluk
+        HotkeyAction.Next      => new HotkeyBinding { Modifiers = 3, Key = "Right" },  // Ctrl+Alt+→
+        HotkeyAction.Previous  => new HotkeyBinding { Modifiers = 3, Key = "Left" },   // Ctrl+Alt+←
+        _                      => new HotkeyBinding { Modifiers = 1, Key = "P" },      // Alt+P
+    };
+
+    public HotkeyBinding GetHotkey(HotkeyAction a)
+    {
+        string id = a.ToString();
+        if (!Hotkeys.TryGetValue(id, out var b)) Hotkeys[id] = b = DefaultHotkey(a);
+        return b;
+    }
+
+    public void ResetHotkeys()
+    {
+        Hotkeys.Clear();
+        foreach (HotkeyAction a in Enum.GetValues(typeof(HotkeyAction))) GetHotkey(a);
+    }
 
     // Platform kuralları
     public Dictionary<string, PlatformRule> Rules { get; set; } = new();
@@ -61,6 +91,9 @@ public sealed class AppSettings
     public void EnsureDefaults()
     {
         foreach (var p in Platforms.All) GetRule(p.Id);
+        if (!Hotkeys.ContainsKey("Toggle") && HotkeyModifiers != 0)
+            Hotkeys["Toggle"] = new HotkeyBinding { Modifiers = HotkeyModifiers, Key = HotkeyKey };
+        foreach (HotkeyAction a in Enum.GetValues(typeof(HotkeyAction))) GetHotkey(a);
     }
 
     public void ResetRules()

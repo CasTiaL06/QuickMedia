@@ -16,7 +16,7 @@ namespace QuickMedia;
 public partial class SettingsWindow : Window
 {
     private bool _loading = true;     // kurulum sırasında tetiklenen olayları yoksay
-    private bool _capturing;
+    private HotkeyAction? _capAction;
 
     private static readonly string[] Accents = ["#8AB4F8", "#81C995", "#F28B82", "#FDD663", "#C58AF9", "#78D9EC"];
     private static readonly int[] Steps = [1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 60];
@@ -33,14 +33,14 @@ public partial class SettingsWindow : Window
     private StackPanel _accentPanel = null!, _platformHost = null!;
     private readonly List<RadioButton> _posRadios = new();
     private readonly List<(string Id, Border Tile)> _tiles = new();
-    private Button _hotkeyBtn = null!;
+    private readonly Dictionary<HotkeyAction, Button> _hotkeyBtns = new();
 
     public SettingsWindow()
     {
         InitializeComponent();
         SourceInitialized += (_, _) => ApplyTitleBar();
         App.Applied += OnApplied;
-        Closed += (_, _) => { App.Applied -= OnApplied; if (_capturing) EndCapture(); };
+        Closed += (_, _) => { App.Applied -= OnApplied; if (_capAction != null) EndCapture(); };
 
         BuildNav();
         BuildPages();
@@ -165,7 +165,7 @@ public partial class SettingsWindow : Window
             ("Appearance", "\uE790", "Stil ve görünüm"),
             ("Visibility", "\uE7B3", "Görünürlük"),
             ("Platforms", "\uE71D", "Platformlar"),
-            ("Hotkey", "\uE765", "Kısayol"),
+            ("Hotkey", "\uE765", "Kısayollar"),
             ("About", "\uE946", "Hakkında"),
         };
         foreach (var (key, glyph, label) in items)
@@ -277,17 +277,26 @@ public partial class SettingsWindow : Window
                 BuildPlatforms();
             }));
 
-        // ---- Kısayol ----
-        _hotkeyBtn = new Button { Style = Res("FluentButton"), MinWidth = 180, Padding = new Thickness(14, 8, 14, 8), FontWeight = FontWeights.SemiBold };
-        _hotkeyBtn.Click += HotkeyBtn_Click;
-        var reset = Btn("Sıfırla (Alt + P)", HotkeyReset_Click);
-        reset.Margin = new Thickness(8, 0, 0, 0);
-        _hotkeyStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 0) };
+        // ---- Kısayollar ----
+        var hkRows = new List<UIElement>();
+        foreach (var r in HotkeyRows)
+        {
+            var action = r.A;
+            var btn = new Button { Style = Res("FluentButton"), MinWidth = 170, Padding = new Thickness(14, 8, 14, 8), FontWeight = FontWeights.SemiBold };
+            btn.Click += (_, _) => BeginCapture(action);
+            _hotkeyBtns[action] = btn;
+            var reset = Btn("Sıfırla", (_, _) => ResetOneHotkey(action));
+            reset.Margin = new Thickness(8, 0, 0, 0);
+            string def = "Varsayılan: " + HotkeyService.Describe(AppSettings.DefaultHotkey(action));
+            hkRows.Add(Row(r.Title, def, new StackPanel { Orientation = Orientation.Horizontal, Children = { btn, reset } }));
+        }
+        _hotkeyStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 14) };
         _pages["Hotkey"] = Page(
-            PageTitle("Kısayol"),
-            Group(Row("Göster / gizle", "Düğmeye tıklayıp yeni kombinasyona basın (en az bir Ctrl, Alt veya Win ile). Varsayılan: Alt + P",
-                new StackPanel { Orientation = Orientation.Horizontal, Children = { _hotkeyBtn, reset } })),
-            _hotkeyStatus);
+            PageTitle("Kısayollar"),
+            Note("Düğmeye tıklayıp yeni kombinasyona basın (en az bir Ctrl, Alt veya Win ile). Bu kısayollar herhangi bir uygulama açıkken çalışır."),
+            Group(hkRows.ToArray()),
+            _hotkeyStatus,
+            Btn("Tümünü varsayılana döndür", (_, _) => ResetAllHotkeys()));
 
         // ---- Hakkında ----
         string ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
@@ -568,40 +577,60 @@ public partial class SettingsWindow : Window
         _platformHost.Children.Add(Group(rows.ToArray()));
     }
 
-    // ================= Kısayol =================
+    // ================= Kısayollar =================
 
-    private void UpdateHotkeyText() =>
-        _hotkeyBtn.Content = _capturing ? "Tuşlara basın…  (Esc: iptal)" : HotkeyService.Describe(App.Settings);
+    private static readonly (HotkeyAction A, string Title)[] HotkeyRows =
+    [
+        (HotkeyAction.Toggle, "Flyout'u göster / gizle"),
+        (HotkeyAction.PlayPause, "Oynat / duraklat"),
+        (HotkeyAction.Next, "Sonraki şarkı"),
+        (HotkeyAction.Previous, "Önceki şarkı"),
+    ];
+
+    private static string TitleOf(HotkeyAction a) => HotkeyRows.First(r => r.A == a).Title;
+
+    private void UpdateHotkeyText()
+    {
+        foreach (var (a, b) in _hotkeyBtns)
+            b.Content = _capAction == a ? "Tuşlara basın…  (Esc: iptal)" : HotkeyService.Describe(a);
+    }
 
     private void UpdateHotkeyStatus(string? msg)
     {
         if (msg != null) { _hotkeyStatus.Text = msg; return; }
-        _hotkeyStatus.Text = App.Hotkey.IsRegistered
-            ? "Kısayol etkin."
-            : $"Kısayol şu anda kayıtlı değil (hata {App.Hotkey.LastError}). Başka bir uygulama kullanıyor olabilir; farklı bir kombinasyon seçin.";
+
+        var failed = HotkeyRows.Where(r => App.Hotkey.ModeOf(r.A) == HotkeyMode.None).Select(r => r.Title).ToList();
+        var compat = HotkeyRows.Where(r => App.Hotkey.ModeOf(r.A) == HotkeyMode.Compat).Select(r => r.Title).ToList();
+
+        if (failed.Count > 0)
+            _hotkeyStatus.Text = "Kaydedilemeyen kısayol: " + string.Join(", ", failed) + ". Farklı bir kombinasyon deneyin.";
+        else if (compat.Count > 0)
+            _hotkeyStatus.Text = "Tüm kısayollar etkin. (" + string.Join(", ", compat) + ": uyumluluk modu — başka bir uygulama da aynı kombinasyonu kullanıyor olabilir.)";
+        else
+            _hotkeyStatus.Text = "Tüm kısayollar etkin.";
     }
 
-    private void HotkeyBtn_Click(object sender, RoutedEventArgs e)
+    private void BeginCapture(HotkeyAction a)
     {
-        if (_capturing) return;
-        _capturing = true;
-        App.Hotkey.Unregister();          // mevcut kısayol yakalamayı engellemesin
+        if (_capAction != null) return;
+        _capAction = a;
+        App.Hotkey.UnregisterAll();       // mevcut kısayollar yakalamayı engellemesin
         UpdateHotkeyStatus("");
         UpdateHotkeyText();
-        _hotkeyBtn.Focus();
+        _hotkeyBtns[a].Focus();
     }
 
     private void EndCapture()
     {
-        _capturing = false;
-        App.Hotkey.RegisterFromSettings();
+        _capAction = null;
+        App.Hotkey.RegisterAllFromSettings();
         UpdateHotkeyText();
         UpdateHotkeyStatus(null);
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (!_capturing) { base.OnPreviewKeyDown(e); return; }
+        if (_capAction is not HotkeyAction cap) { base.OnPreviewKeyDown(e); return; }
         e.Handled = true;
 
         Key key = e.Key switch
@@ -622,28 +651,54 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (!App.Hotkey.Register(mods, key))
+        string ks = key.ToString();
+        foreach (HotkeyAction other in Enum.GetValues(typeof(HotkeyAction)))
         {
-            UpdateHotkeyStatus($"Bu kısayol başka bir uygulama tarafından kullanılıyor (hata {App.Hotkey.LastError}), başka bir tane deneyin.");
-            return;
+            if (other == cap) continue;
+            var b = App.Settings.GetHotkey(other);
+            if (b.Modifiers == (int)mods && b.Key == ks)
+            {
+                UpdateHotkeyStatus($"Bu kombinasyon zaten '{TitleOf(other)}' için kullanılıyor.");
+                return;
+            }
         }
 
-        App.Settings.HotkeyModifiers = (int)mods;
-        App.Settings.HotkeyKey = key.ToString();
+        var bind = App.Settings.GetHotkey(cap);
+        bind.Modifiers = (int)mods;
+        bind.Key = ks;
         SettingsStore.Save(App.Settings);
-        _capturing = false;
+
+        _capAction = null;
+        App.Hotkey.RegisterAllFromSettings();
         UpdateHotkeyText();
-        UpdateHotkeyStatus("Kısayol kaydedildi ve etkin.");
+        UpdateHotkeyStatus(App.Hotkey.ModeOf(cap) switch
+        {
+            HotkeyMode.Native => "Kısayol kaydedildi ve etkin.",
+            HotkeyMode.Compat => "Kısayol kaydedildi (uyumluluk modu): başka bir uygulama da bu kombinasyonu kullanıyor olabilir.",
+            _ => "Kısayol kaydedilemedi, başka bir kombinasyon deneyin."
+        });
     }
 
-    private void HotkeyReset_Click(object sender, RoutedEventArgs e)
+    private void ResetOneHotkey(HotkeyAction a)
     {
-        _capturing = false;
-        App.Settings.HotkeyModifiers = (int)ModifierKeys.Alt;
-        App.Settings.HotkeyKey = "P";
+        if (_capAction != null) return;
+        var d = AppSettings.DefaultHotkey(a);
+        var b = App.Settings.GetHotkey(a);
+        b.Modifiers = d.Modifiers;
+        b.Key = d.Key;
         SettingsStore.Save(App.Settings);
-        bool ok = App.Hotkey.RegisterFromSettings();
+        App.Hotkey.RegisterAllFromSettings();
         UpdateHotkeyText();
-        UpdateHotkeyStatus(ok ? "Varsayılan kısayol (Alt + P) geri yüklendi." : $"Alt + P başka bir uygulama tarafından kullanılıyor (hata {App.Hotkey.LastError}).");
+        UpdateHotkeyStatus(null);
+    }
+
+    private void ResetAllHotkeys()
+    {
+        if (_capAction != null) return;
+        App.Settings.ResetHotkeys();
+        SettingsStore.Save(App.Settings);
+        App.Hotkey.RegisterAllFromSettings();
+        UpdateHotkeyText();
+        UpdateHotkeyStatus(null);
     }
 }

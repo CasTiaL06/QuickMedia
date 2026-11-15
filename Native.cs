@@ -35,6 +35,23 @@ internal static class Native
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
     [DllImport("shell32.dll")] private static extern int SHQueryUserNotificationState(out int state);
 
+
+    // ---- Düşük seviye klavye kancası (RegisterHotKey başarısız olursa yedek) ----
+    internal delegate IntPtr LowLevelProc(int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetWindowsHookEx(int idHook, LowLevelProc cb, IntPtr hMod, uint threadId);
+    [DllImport("user32.dll")] internal static extern bool UnhookWindowsHookEx(IntPtr hhk);
+    [DllImport("user32.dll")] internal static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] internal static extern IntPtr GetModuleHandle(string? name);
+    [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int vk);
+    [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+    /// <summary>Alt tuşu tek başına bırakılınca uygulamaların menü çubuğunu açmasını engeller.</summary>
+    internal static void CancelMenu()
+    {
+        keybd_event(0xE8, 0, 0, UIntPtr.Zero);
+        keybd_event(0xE8, 0, 2, UIntPtr.Zero);
+    }
+
     public static void SetDarkTitleBar(IntPtr hwnd, bool dark)
     {
         int v = dark ? 1 : 0;

@@ -43,15 +43,16 @@ public partial class App : Application
             Flyout = new FlyoutController(new FlyoutWindow());
 
             Hotkey = new HotkeyService();
-            Hotkey.Pressed += () => Dispatcher.BeginInvoke(() =>
+            Hotkey.Pressed += a => Dispatcher.BeginInvoke(() =>
             {
-                try { Flyout.Toggle(); }
-                catch (Exception ex) { Log.Write("Toggle hatası: " + ex); }
+                try { HandleHotkey(a); }
+                catch (Exception ex) { Log.Write("Kısayol işleme hatası: " + ex); }
             });
 
             _tray = new TrayService();
-            if (!Hotkey.RegisterFromSettings())
-                _tray.Notify($"{HotkeyService.Describe(Settings)} kısayolu kaydedilemedi (hata {Hotkey.LastError}). Ayarlar > Kısayol bölümünden başka bir tane seçin.");
+            int bad = Hotkey.RegisterAllFromSettings();
+            if (bad > 0)
+                _tray.Notify($"{bad} kısayol kaydedilemedi. Ayarlar > Kısayollar bölümünden başka bir kombinasyon seçin (günlük: {Log.FilePath}).");
         }
         catch (Exception ex)
         {
@@ -71,6 +72,17 @@ public partial class App : Application
         {
             Log.Write("Medya servisi hatası: " + ex);
             _tray?.Notify("Medya servisi başlatılamadı: " + ex.Message);
+        }
+    }
+
+    private static void HandleHotkey(HotkeyAction a)
+    {
+        switch (a)
+        {
+            case HotkeyAction.Toggle: Flyout.Toggle(); break;
+            case HotkeyAction.PlayPause: Media.TogglePlay(); break;
+            case HotkeyAction.Next: Media.Next(); break;
+            case HotkeyAction.Previous: Media.Previous(); break;
         }
     }
 

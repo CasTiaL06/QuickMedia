@@ -23,7 +23,9 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - 5 flyout stili: Klasik, Kompakt şerit, Minimal hap, Büyük kapak, Island (üst orta, fareyle genişler).
   Geçiş: Ayarlar > Stil ve görünüm, tray menüsü > Stil veya flyout üzerinde sağ tık (sıradaki stil)
 - Temalar: Dark Glass, Light Glass, Midnight; renkler `ThemeManager.cs` içinde
-- Küresel kısayol (varsayılan Alt+P): Ayarlar > Kısayol'dan değiştirilir, "Sıfırla" ile Alt+P'ye döner
+- Küresel kısayollar (Ayarlar > Kısayollar'dan değiştirilir, her biri için "Sıfırla" var):
+  Alt+P göster/gizle · Ctrl+Alt+Boşluk oynat/duraklat · Ctrl+Alt+→ sonraki · Ctrl+Alt+← önceki.
+  RegisterHotKey başarısız olursa otomatik olarak klavye kancası (uyumluluk modu) kullanılır.
 - Boyut: Ayarlar > Görünüm > Boyut veya flyout üstünde Ctrl + fare tekerleği
 - Konum: 6 hazır konum veya flyout'u fareyle sürükleyin
 - Ses aç/kapat + ses seviyesi: Windows ana sesine dokunmaz, yalnızca çalan uygulamanın ses oturumunu yönetir
@@ -39,4 +41,4 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 
 ## Sorun giderme
 Hata günlüğü: `%AppData%\QuickMedia\log.txt` (Ayarlar > Hakkında > Günlük dosyası > Aç).
-Kısayol kaydı başarısızsa hata kodu hem tray bildiriminde hem Ayarlar > Kısayol'da görünür (1409 = başka uygulama kullanıyor).
+Kısayol durumu Ayarlar > Kısayollar'da yazar; ayrıntılar log.txt'dedir (1409 = başka uygulama kullanıyor).
