@@ -14,6 +14,12 @@ public sealed class PlatformRule
     public int Seconds { get; set; } = 5;
 }
 
+public sealed class SavedPos
+{
+    public double X { get; set; }
+    public double Y { get; set; }
+}
+
 public sealed class HotkeyBinding
 {
     public int Modifiers { get; set; } = 1;
@@ -41,8 +47,21 @@ public sealed class AppSettings
     public bool Animations { get; set; } = true;
     public double Scale { get; set; } = 1.0;
     public string Position { get; set; } = "BottomCenter";
+    // Eski sürümden geçiş için (yalnızca okunur); yeni konumlar stil başına tutulur
     public double? CustomX { get; set; }
     public double? CustomY { get; set; }
+
+    /// <summary>Sürükleyerek belirlenen konum — her stil için ayrı saklanır.</summary>
+    public Dictionary<string, SavedPos> CustomPositions { get; set; } = new();
+
+    [JsonIgnore]
+    public SavedPos? CurrentCustom =>
+        CustomPositions.TryGetValue(FlyoutStyles.Normalize(FlyoutStyle), out var p) ? p : null;
+
+    public void SetCustom(double x, double y) =>
+        CustomPositions[FlyoutStyles.Normalize(FlyoutStyle)] = new SavedPos { X = x, Y = y };
+
+    public void ClearCustom() => CustomPositions.Remove(FlyoutStyles.Normalize(FlyoutStyle));
 
     // Öğeler
     public bool ShowAlbumArt { get; set; } = true;
@@ -63,6 +82,9 @@ public sealed class AppSettings
         HotkeyAction.PlayPause => new HotkeyBinding { Modifiers = 3, Key = "Space" },  // Ctrl+Alt+Boşluk
         HotkeyAction.Next      => new HotkeyBinding { Modifiers = 3, Key = "Right" },  // Ctrl+Alt+→
         HotkeyAction.Previous  => new HotkeyBinding { Modifiers = 3, Key = "Left" },   // Ctrl+Alt+←
+        HotkeyAction.VolumeUp  => new HotkeyBinding { Modifiers = 3, Key = "Up" },     // Ctrl+Alt+↑
+        HotkeyAction.VolumeDown => new HotkeyBinding { Modifiers = 3, Key = "Down" },  // Ctrl+Alt+↓
+        HotkeyAction.OpenSettings => new HotkeyBinding { Modifiers = 3, Key = "S" },   // Ctrl+Alt+S
         _                      => new HotkeyBinding { Modifiers = 1, Key = "P" },      // Alt+P
     };
 
@@ -77,6 +99,9 @@ public sealed class AppSettings
     {
         Hotkeys.Clear();
         foreach (HotkeyAction a in Enum.GetValues(typeof(HotkeyAction))) GetHotkey(a);
+        if (CustomX != null && CustomY != null && CustomPositions.Count == 0)
+            CustomPositions[FlyoutStyles.Normalize(FlyoutStyle)] = new SavedPos { X = CustomX.Value, Y = CustomY.Value };
+        CustomX = null; CustomY = null;
     }
 
     // Platform kuralları

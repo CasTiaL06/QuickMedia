@@ -90,6 +90,16 @@ public sealed class FlyoutController
         }
     }
 
+    /// <summary>Ses kısayolundan sonra kısa süre göster (zaten görünüyorsa sadece güncelle).</summary>
+    public void NudgeVolume()
+    {
+        var s = App.Settings;
+        if (!s.Enabled || !s.ShowVolumeControls) return;
+        if (_win.IsShown) { _win.Poke(); return; }
+        _win.Update(App.Media.Current);
+        Show(2);
+    }
+
     public void Preview()
     {
         _win.Update(App.Media.Current);

@@ -7,7 +7,7 @@ using System.Windows.Interop;
 
 namespace QuickMedia;
 
-public enum HotkeyAction { Toggle, PlayPause, Next, Previous }
+public enum HotkeyAction { Toggle, PlayPause, Next, Previous, VolumeUp, VolumeDown, OpenSettings }
 
 /// <summary>None: kaydedilemedi · Native: RegisterHotKey ile · Compat: klavye kancasıyla (yedek mod)</summary>
 public enum HotkeyMode { None, Native, Compat }

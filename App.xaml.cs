@@ -83,7 +83,28 @@ public partial class App : Application
             case HotkeyAction.PlayPause: Media.TogglePlay(); break;
             case HotkeyAction.Next: Media.Next(); break;
             case HotkeyAction.Previous: Media.Previous(); break;
+            case HotkeyAction.VolumeUp: AdjustVolume(+0.05f); break;
+            case HotkeyAction.VolumeDown: AdjustVolume(-0.05f); break;
+            case HotkeyAction.OpenSettings: ToggleSettings(); break;
         }
+    }
+
+    /// <summary>Windows ana sesine değil, yalnızca çalan uygulamanın sesine dokunur.</summary>
+    private static void AdjustVolume(float delta)
+    {
+        string id = Media.Current.AppId;
+        var st = AppVolume.GetState(id);
+        if (st == null) return;
+        if (delta > 0 && st.Value.Muted) AppVolume.SetMute(id, false);
+        AppVolume.SetVolume(id, Math.Clamp(st.Value.Volume + delta, 0f, 1f));
+        Flyout.NudgeVolume();
+    }
+
+    public static void ToggleSettings()
+    {
+        var app = (App)Current;
+        if (app._settingsWindow != null) app._settingsWindow.Close();
+        else ShowSettings();
     }
 
     public static void ApplyAll()

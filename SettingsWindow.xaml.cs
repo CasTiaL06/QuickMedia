@@ -292,7 +292,7 @@ public partial class SettingsWindow : Window
             PageTitle("Stil ve görünüm"),
             Section("STİL"),
             tiles,
-            Note("Stile tıklayınca flyout önizlemesi açılır. Flyout üzerinde sağ tık sıradaki stile geçer; tray menüsünde de 'Stil' var. Island stili ekranın üst ortasında durur ve fareyle üstüne gelince genişler."),
+            Note("Stile tıklayınca flyout önizlemesi açılır. Flyout üzerinde sağ tık sıradaki stile geçer; tray menüsünde de 'Stil' var. Island stili ekranın üst ortasında durur ve fareyle üstüne gelince genişler. Yuvarlak plak ve Kare kapak'ta kontroller fareyle üstüne gelince çıkar. Flyout'u istediğiniz yere sürükleyin; konum her stil için ayrı hatırlanır."),
             Section("TEMA"),
             Group(
                 Row("Tema", "Dark Glass: yarı saydam koyu yüzey, ince kenarlık, yumuşak gölge.", SegRow(_themeDark, _themeLight, _themeMid)),
@@ -414,6 +414,30 @@ public partial class SettingsWindow : Window
                 Shp(c, 34, 51, 44, 2, 1, trk); Shp(c, 34, 51, 18, 2, 1, acc);
                 Shp(c, 50, 56, 12, 8, 0, acc, 1, true);
                 break;
+            case "Wide":
+                Shp(c, 2, 18, 108, 32, 8, card);
+                Shp(c, 8, 24, 18, 18, 4, ink, .35);
+                Shp(c, 32, 26, 36, 4, 2, ink, .8); Shp(c, 32, 34, 24, 3, 1.5, ink, .45);
+                Shp(c, 74, 28, 6, 6, 0, ink, .7, true); Shp(c, 82, 27, 8, 8, 0, acc, 1, true); Shp(c, 92, 28, 6, 6, 0, ink, .7, true);
+                Shp(c, 8, 45, 96, 2, 1, trk); Shp(c, 8, 45, 40, 2, 1, acc);
+                break;
+            case "Tile":
+                Shp(c, 32, 3, 48, 62, 8, card);
+                Shp(c, 37, 8, 38, 38, 5, ink, .35);
+                Shp(c, 42, 51, 28, 3, 1.5, ink, .8);
+                Shp(c, 37, 58, 38, 2, 1, trk); Shp(c, 37, 58, 16, 2, 1, acc);
+                break;
+            case "Text":
+                Shp(c, 16, 22, 76, 7, 3.5, ink, .9);
+                Shp(c, 16, 36, 50, 4, 2, ink, .5);
+                break;
+            case "Orb":
+                Shp(c, 29, 2, 54, 54, 0, trk, .8, true);
+                Shp(c, 33, 6, 46, 46, 0, ink, .35, true);
+                Shp(c, 50, 23, 12, 12, 0, card, 1, true);
+                Shp(c, 52, 0, 8, 8, 0, acc, 1, true);
+                Shp(c, 36, 58, 40, 8, 4, card);
+                break;
             case "Island":
                 Shp(c, 20, 4, 72, 20, 10, card);
                 Shp(c, 25, 8, 12, 12, 0, ink, .4, true);
@@ -475,7 +499,7 @@ public partial class SettingsWindow : Window
         _scale.Value = Math.Round(s.Scale * 100);
         _anim.IsChecked = s.Animations;
 
-        foreach (var r in _posRadios) r.IsChecked = s.CustomX == null && (string)r.Tag! == s.Position;
+        foreach (var r in _posRadios) r.IsChecked = s.CurrentCustom == null && (string)r.Tag! == s.Position;
 
         _art.IsChecked = s.ShowAlbumArt;
         _prog.IsChecked = s.ShowProgress;
@@ -535,8 +559,7 @@ public partial class SettingsWindow : Window
     private void OnPosition(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        App.Settings.CustomX = null;     // hazır konum seçilince sürükleyerek belirlenen konum silinir
-        App.Settings.CustomY = null;
+        App.Settings.ClearCustom();      // hazır konum seçilince bu stil için sürükleyerek belirlenen konum silinir
         Collect();
     }
 
@@ -646,6 +669,9 @@ public partial class SettingsWindow : Window
         (HotkeyAction.PlayPause, "Oynat / duraklat"),
         (HotkeyAction.Next, "Sonraki şarkı"),
         (HotkeyAction.Previous, "Önceki şarkı"),
+        (HotkeyAction.VolumeUp, "Sesi artır (çalan uygulama)"),
+        (HotkeyAction.VolumeDown, "Sesi azalt (çalan uygulama)"),
+        (HotkeyAction.OpenSettings, "Ayarları aç / kapat"),
     ];
 
     private static string TitleOf(HotkeyAction a) => HotkeyRows.First(r => r.A == a).Title;

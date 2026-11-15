@@ -144,6 +144,22 @@ public sealed class MediaService
         catch { return null; }
     }
 
+    /// <summary>Şarkı / videoda belirtilen orana (0..1) atlar.</summary>
+    public void Seek(double ratio)
+    {
+        try
+        {
+            var s = _session;
+            if (s == null) return;
+            var t = s.GetTimelineProperties();
+            var dur = t.EndTime - t.StartTime;
+            if (dur <= TimeSpan.Zero) return;
+            var target = t.StartTime + TimeSpan.FromTicks((long)(dur.Ticks * Math.Clamp(ratio, 0, 1)));
+            _ = s.TryChangePlaybackPositionAsync(target.Ticks);
+        }
+        catch { }
+    }
+
     public void TogglePlay() { try { _ = _session?.TryTogglePlayPauseAsync(); } catch { } }
     public void Next() { try { _ = _session?.TrySkipNextAsync(); } catch { } }
     public void Previous() { try { _ = _session?.TrySkipPreviousAsync(); } catch { } }

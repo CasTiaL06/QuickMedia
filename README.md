@@ -20,11 +20,14 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 
 ## Özellikler
 - Tray ikonu: sağ tık > Göster/Gizle, Ayarlar, Çıkış; çift tık > Ayarlar
-- 5 flyout stili: Klasik, Kompakt şerit, Minimal hap, Büyük kapak, Island (üst orta, fareyle genişler).
+- 9 flyout stili: Klasik, Kompakt şerit, Minimal hap, Büyük kapak, Island, Geniş şerit, Kare kapak, Sadece yazı ve
+  Yuvarlak plak (dönen yuvarlak kapak + ilerleme halkası, istediğin yere sürüklenir; konum stil başına hatırlanır)
   Geçiş: Ayarlar > Stil ve görünüm, tray menüsü > Stil veya flyout üzerinde sağ tık (sıradaki stil)
 - Temalar: Dark Glass, Light Glass, Midnight; renkler `ThemeManager.cs` içinde
 - Küresel kısayollar (Ayarlar > Kısayollar'dan değiştirilir, her biri için "Sıfırla" var):
-  Alt+P göster/gizle · Ctrl+Alt+Boşluk oynat/duraklat · Ctrl+Alt+→ sonraki · Ctrl+Alt+← önceki.
+  Alt+P göster/gizle · Ctrl+Alt+Boşluk oynat/duraklat · Ctrl+Alt+→ sonraki · Ctrl+Alt+← önceki ·
+  Ctrl+Alt+↑/↓ çalan uygulamanın sesi · Ctrl+Alt+S ayarları aç/kapat.
+- İlerleme çubuğuna tıklayıp sürükleyerek şarkı/videoda istediğin bölüme atlayabilirsin.
   RegisterHotKey başarısız olursa otomatik olarak klavye kancası (uyumluluk modu) kullanılır.
 - Boyut: Ayarlar > Görünüm > Boyut veya flyout üstünde Ctrl + fare tekerleği
 - Konum: 6 hazır konum veya flyout'u fareyle sürükleyin

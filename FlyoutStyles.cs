@@ -11,6 +11,10 @@ public static class FlyoutStyles
         ("Pill",    "Minimal hap"),
         ("Cover",   "Büyük kapak"),
         ("Island",  "Island"),
+        ("Wide",    "Geniş şerit"),
+        ("Tile",    "Kare kapak"),
+        ("Text",    "Sadece yazı"),
+        ("Orb",     "Yuvarlak plak"),
     ];
 
     public static string Normalize(string? id) => All.Any(a => a.Id == id) ? id! : "Classic";
