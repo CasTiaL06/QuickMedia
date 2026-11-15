@@ -38,22 +38,43 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+
+        // Pencere ikonu ve logo: yüklenemezse pencere yine açılsın
+        try
+        {
+            var logo = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/logo.png"));
+            Icon = logo;
+            BrandHost.Children.Insert(0, new Image { Source = logo, Width = 30, Height = 30, Margin = new Thickness(0, 0, 10, 0) });
+        }
+        catch (Exception ex) { Log.Write("Ayarlar logosu yüklenemedi: " + ex.Message); }
+
         SourceInitialized += (_, _) => ApplyTitleBar();
         App.Applied += OnApplied;
         Closed += (_, _) => { App.Applied -= OnApplied; if (_capAction != null) EndCapture(); };
 
-        BuildNav();
+        Step("Gezinme", BuildNav);
+        Step("Denetimler", InitControls);
         BuildPages();
-        Load();
-        ShowPage("General");
+        Step("Yükleme", Load);
+        Step("Sayfa", () => ShowPage("General"));
+    }
+
+    private static void Step(string name, Action a)
+    {
+        try { a(); }
+        catch (Exception ex) { Log.Write($"Ayarlar penceresi ({name}) hatası: {ex}"); }
     }
 
     private void OnApplied() { RefreshTiles(); }
 
     private void ApplyTitleBar()
     {
-        var h = new WindowInteropHelper(this).Handle;
-        Native.SetDarkTitleBar(h, App.Settings.Theme != "Light");
+        try
+        {
+            var h = new WindowInteropHelper(this).Handle;
+            Native.SetDarkTitleBar(h, App.Settings.Theme != "Light");
+        }
+        catch { }
     }
 
     // ================= Yardımcı oluşturucular =================
@@ -179,31 +200,20 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void ShowPage(string key) => Host.Content = _pages[key];
+    private void ShowPage(string key)
+    {
+        if (_pages.TryGetValue(key, out var p)) PageHost.Content = p;
+    }
 
     // ================= Sayfalar =================
 
-    private void BuildPages()
+    // Tüm denetimler önce oluşturulur; bir sayfa bozulsa bile alanlar null kalmaz.
+    private void InitControls()
     {
-        // ---- Genel ----
         _enabled = Sw(); _autoStart = Sw(); _portable = Sw(OnPortable);
-        _pathText = new TextBlock { Style = Res("Hint"), TextAlignment = TextAlignment.Right, MaxWidth = 300 };
-        var openFolder = Btn("Klasörü aç", (_, _) =>
-        {
-            try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{SettingsStore.Dir}\"") { UseShellExecute = true }); } catch { }
-        });
-        _pages["General"] = Page(
-            PageTitle("Genel"),
-            Group(
-                Row("Flyout etkin", "Kapalıyken flyout hiçbir koşulda (kısayol dahil) görünmez.", _enabled),
-                Row("Windows ile başlat", "Oturum açıldığında QuickMedia otomatik çalışsın.", _autoStart),
-                Row("Taşınabilir mod", "Ayarlar exe'nin yanındaki settings.json'da tutulur; klasörü USB belleğe kopyalayıp her yerde çalıştırabilirsiniz.", _portable)),
-            Section("AYAR DOSYASI"),
-            Group(Row("Konum", null, new StackPanel { Orientation = Orientation.Horizontal, Children = { _pathText, new Border { Width = 10 }, openFolder } })));
+        _pathText = new TextBlock { Style = Res("Hint"), TextAlignment = TextAlignment.Right, MaxWidth = 300, VerticalAlignment = VerticalAlignment.Center };
 
-        // ---- Stil ve görünüm ----
-        var tiles = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
-        foreach (var (id, name) in FlyoutStyles.All) tiles.Children.Add(MakeTile(id, name));
+        _track = Sw(); _play = Sw(); _fullscreen = Sw(); _paused = Sw();
 
         _themeDark = Seg("Dark Glass", "theme", "Dark", OnChanged);
         _themeLight = Seg("Light Glass", "theme", "Light", OnChanged);
@@ -217,16 +227,68 @@ public partial class SettingsWindow : Window
         _blur = Sw(); _anim = Sw();
         _art = Sw(); _prog = Sw(); _ctrl = Sw(); _vol = Sw(); _badge = Sw();
 
-        var posGrid = new UniformGrid { Columns = 3 };
         foreach (var (tag, text) in new[] { ("TopLeft", "Üst sol"), ("TopCenter", "Üst orta"), ("TopRight", "Üst sağ"),
                                             ("BottomLeft", "Alt sol"), ("BottomCenter", "Alt orta"), ("BottomRight", "Alt sağ") })
-        {
-            var r = Seg(text, "pos", tag, OnPosition);
-            _posRadios.Add(r);
-            posGrid.Children.Add(r);
-        }
+            _posRadios.Add(Seg(text, "pos", tag, OnPosition));
 
-        _pages["Appearance"] = Page(
+        _platformHost = new StackPanel();
+
+        foreach (var r in HotkeyRows)
+        {
+            var action = r.A;
+            var btn = new Button { Style = Res("FluentButton"), MinWidth = 170, Padding = new Thickness(14, 8, 14, 8), FontWeight = FontWeights.SemiBold };
+            btn.Click += (_, _) => BeginCapture(action);
+            _hotkeyBtns[action] = btn;
+        }
+        _hotkeyStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 14) };
+    }
+
+    private void BuildPages()
+    {
+        var builders = new (string Key, Func<FrameworkElement> Build)[]
+        {
+            ("General", PageGeneral), ("Appearance", PageAppearance), ("Visibility", PageVisibility),
+            ("Platforms", PagePlatforms), ("Hotkey", PageHotkey), ("About", PageAbout),
+        };
+        foreach (var (key, build) in builders)
+        {
+            try { _pages[key] = build(); }
+            catch (Exception ex)
+            {
+                Log.Write($"Ayarlar sayfası '{key}' oluşturulamadı: {ex}");
+                _pages[key] = new ScrollViewer
+                {
+                    Content = new TextBlock { Text = "Bu sayfa yüklenemedi:\n\n" + ex.Message + "\n\nAyrıntı: " + Log.FilePath, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(36) }
+                };
+            }
+        }
+    }
+
+    private FrameworkElement PageGeneral()
+    {
+        var openFolder = Btn("Klasörü aç", (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{SettingsStore.Dir}\"") { UseShellExecute = true }); } catch { }
+        });
+        return Page(
+            PageTitle("Genel"),
+            Group(
+                Row("Flyout etkin", "Kapalıyken flyout hiçbir koşulda görünmez.", _enabled),
+                Row("Windows ile başlat", "Oturum açıldığında QuickMedia otomatik çalışsın.", _autoStart),
+                Row("Taşınabilir mod", "Ayarlar exe'nin yanındaki settings.json'da tutulur; klasörü USB belleğe kopyalayıp her yerde çalıştırabilirsiniz.", _portable)),
+            Section("AYAR DOSYASI"),
+            Group(Row("Konum", null, new StackPanel { Orientation = Orientation.Horizontal, Children = { _pathText, new Border { Width = 10 }, openFolder } })));
+    }
+
+    private FrameworkElement PageAppearance()
+    {
+        var tiles = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+        foreach (var (id, name) in FlyoutStyles.All) tiles.Children.Add(MakeTile(id, name));
+
+        var posGrid = new UniformGrid { Columns = 3 };
+        foreach (var r in _posRadios) posGrid.Children.Add(r);
+
+        return Page(
             PageTitle("Stil ve görünüm"),
             Section("STİL"),
             tiles,
@@ -250,23 +312,22 @@ public partial class SettingsWindow : Window
                 Row("Platform etiketi", null, _badge),
                 Row("Açılış / kapanış animasyonu", null, _anim)),
             Btn("Önizleme göster", (_, _) => App.Flyout.Preview()));
+    }
 
-        // ---- Görünürlük ----
-        _track = Sw(); _play = Sw(); _fullscreen = Sw(); _paused = Sw();
-        _pages["Visibility"] = Page(
-            PageTitle("Görünürlük"),
-            Group(
-                Row("Parça değişince göster", "Yeni şarkı / video başladığında flyout açılır.", _track),
-                Row("Oynat / duraklat olunca göster", "Oynatma durumu değiştiğinde flyout açılır.", _play),
-                Row("Tam ekranda gizle", "Oyun, tam ekran video veya sunum sırasında otomatik gösterme yapılmaz. Kısayol yine çalışır.", _fullscreen),
-                Row("Duraklatılınca gizle", "'Hep göster' modundaki platformlarda medya duraklatılırsa flyout kapanır.", _paused)),
-            Note("Her platform için süre ve davranışı 'Platformlar' sayfasından ayarlayabilirsiniz."),
-            Btn("Önizleme göster", (_, _) => App.Flyout.Preview()));
+    private FrameworkElement PageVisibility() => Page(
+        PageTitle("Görünürlük"),
+        Group(
+            Row("Parça değişince göster", "Yeni şarkı / video başladığında flyout açılır.", _track),
+            Row("Oynat / duraklat olunca göster", "Oynatma durumu değiştiğinde flyout açılır.", _play),
+            Row("Tam ekranda gizle", "Oyun, tam ekran video veya sunum sırasında otomatik gösterme yapılmaz. Kısayol yine çalışır.", _fullscreen),
+            Row("Duraklatılınca gizle", "'Hep göster' modundaki platformlarda medya duraklatılırsa flyout kapanır.", _paused)),
+        Note("Her platform için süre ve davranışı 'Platformlar' sayfasından ayarlayabilirsiniz."),
+        Btn("Önizleme göster", (_, _) => App.Flyout.Preview()));
 
-        // ---- Platformlar ----
-        _platformHost = new StackPanel();
+    private FrameworkElement PagePlatforms()
+    {
         BuildPlatforms();
-        _pages["Platforms"] = Page(
+        return Page(
             PageTitle("Platformlar"),
             Note("Hep göster: medya varken sürekli açık kalır. Süreli: tetiklenince seçilen saniye kadar görünür. Gizle: bu platformda otomatik açılmaz. Listede olmayan kaynaklar 'Diğer' kuralını kullanır."),
             _platformHost,
@@ -276,34 +337,34 @@ public partial class SettingsWindow : Window
                 SettingsStore.Save(App.Settings);
                 BuildPlatforms();
             }));
+    }
 
-        // ---- Kısayollar ----
+    private FrameworkElement PageHotkey()
+    {
         var hkRows = new List<UIElement>();
         foreach (var r in HotkeyRows)
         {
             var action = r.A;
-            var btn = new Button { Style = Res("FluentButton"), MinWidth = 170, Padding = new Thickness(14, 8, 14, 8), FontWeight = FontWeights.SemiBold };
-            btn.Click += (_, _) => BeginCapture(action);
-            _hotkeyBtns[action] = btn;
             var reset = Btn("Sıfırla", (_, _) => ResetOneHotkey(action));
             reset.Margin = new Thickness(8, 0, 0, 0);
             string def = "Varsayılan: " + HotkeyService.Describe(AppSettings.DefaultHotkey(action));
-            hkRows.Add(Row(r.Title, def, new StackPanel { Orientation = Orientation.Horizontal, Children = { btn, reset } }));
+            hkRows.Add(Row(r.Title, def, new StackPanel { Orientation = Orientation.Horizontal, Children = { _hotkeyBtns[action], reset } }));
         }
-        _hotkeyStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 14) };
-        _pages["Hotkey"] = Page(
+        return Page(
             PageTitle("Kısayollar"),
             Note("Düğmeye tıklayıp yeni kombinasyona basın (en az bir Ctrl, Alt veya Win ile). Bu kısayollar herhangi bir uygulama açıkken çalışır."),
             Group(hkRows.ToArray()),
             _hotkeyStatus,
             Btn("Tümünü varsayılana döndür", (_, _) => ResetAllHotkeys()));
+    }
 
-        // ---- Hakkında ----
+    private FrameworkElement PageAbout()
+    {
         string ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
-        _pages["About"] = Page(
+        return Page(
             PageTitle("Hakkında"),
             Group(
-                Row("QuickMedia", "Sürüm " + ver, new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/logo.png")), Width = 36, Height = 36 }),
+                Row("QuickMedia", "Sürüm " + ver, new Border()),
                 Row("Nasıl çalışır?", "Windows'un küresel medya kontrollerini dinler. Spotify, YouTube, Netflix, X, Instagram gibi kaynaklar tanınır; tanınmayanlar 'Diğer' kuralını kullanır. Web siteleri tarayıcı pencere başlığına bakılarak tahmin edilir.", new Border())),
             Group(Row("Günlük dosyası", "Bir sorun olursa buradaki log.txt'ye bakın.", Btn("Aç", (_, _) =>
             {

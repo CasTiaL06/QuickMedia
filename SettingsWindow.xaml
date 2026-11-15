@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="QuickMedia" Width="900" Height="660" MinWidth="780" MinHeight="540"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True"
-        Icon="pack://application:,,,/Assets/icon.ico"
         Background="{DynamicResource SolidBgBrush}" Foreground="{DynamicResource TextBrush}"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
 
@@ -16,9 +15,8 @@
     <Border Background="{DynamicResource SolidSurfaceBrush}"
             BorderBrush="{DynamicResource SolidBorderBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="12,20,12,16">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,22">
-          <Image Source="pack://application:,,,/Assets/logo.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"/>
-          <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+        <StackPanel x:Name="BrandHost" DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,22">
+          <StackPanel VerticalAlignment="Center">
             <TextBlock Text="QuickMedia" FontSize="15" FontWeight="SemiBold"/>
             <TextBlock Text="Ayarlar" Style="{StaticResource Hint}"/>
           </StackPanel>
@@ -27,6 +25,6 @@
       </DockPanel>
     </Border>
 
-    <ContentControl x:Name="Host" Grid.Column="1"/>
+    <ContentControl x:Name="PageHost" Grid.Column="1"/>
   </Grid>
 </Window>

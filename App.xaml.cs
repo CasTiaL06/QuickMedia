@@ -106,13 +106,22 @@ public partial class App : Application
     public static void ShowSettings()
     {
         var app = (App)Current;
-        if (app._settingsWindow == null)
+        try
         {
-            app._settingsWindow = new SettingsWindow();
-            app._settingsWindow.Closed += (_, _) => app._settingsWindow = null;
-            app._settingsWindow.Show();
+            if (app._settingsWindow == null)
+            {
+                app._settingsWindow = new SettingsWindow();
+                app._settingsWindow.Closed += (_, _) => app._settingsWindow = null;
+                app._settingsWindow.Show();
+            }
+            app._settingsWindow.Activate();
         }
-        app._settingsWindow.Activate();
+        catch (Exception ex)
+        {
+            Log.Write("Ayarlar açılamadı: " + ex);
+            app._settingsWindow = null;
+            MessageBox.Show("Ayarlar penceresi açılamadı:\n\n" + ex.Message + "\n\nAyrıntı: " + Log.FilePath, "QuickMedia");
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
