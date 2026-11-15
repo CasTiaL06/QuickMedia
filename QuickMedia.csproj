@@ -10,8 +10,14 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>QuickMedia</AssemblyName>
     <RootNamespace>QuickMedia</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>QuickMedia</Product>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\icon.ico" />
+    <Resource Include="Assets\logo.png" />
+  </ItemGroup>
 
 </Project>

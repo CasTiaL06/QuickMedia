@@ -20,11 +20,14 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 
 ## Özellikler
 - Tray ikonu: sağ tık > Göster/Gizle, Ayarlar, Çıkış; çift tık > Ayarlar
-- Dark Glass (+ Light Glass) tema; renkler `ThemeManager.cs` içinde
+- 5 flyout stili: Klasik, Kompakt şerit, Minimal hap, Büyük kapak, Island (üst orta, fareyle genişler).
+  Geçiş: Ayarlar > Stil ve görünüm, tray menüsü > Stil veya flyout üzerinde sağ tık (sıradaki stil)
+- Temalar: Dark Glass, Light Glass, Midnight; renkler `ThemeManager.cs` içinde
 - Küresel kısayol (varsayılan Alt+P): Ayarlar > Kısayol'dan değiştirilir, "Sıfırla" ile Alt+P'ye döner
 - Boyut: Ayarlar > Görünüm > Boyut veya flyout üstünde Ctrl + fare tekerleği
 - Konum: 6 hazır konum veya flyout'u fareyle sürükleyin
-- Ses aç/kapat + ses seviyesi (Ayarlar > Görünüm'den kapatılabilir)
+- Ses aç/kapat + ses seviyesi: Windows ana sesine dokunmaz, yalnızca çalan uygulamanın ses oturumunu yönetir
+  (tarayıcıda tüm sekmeler tek oturumdur). Ayarlar > Stil ve görünüm > Öğeler'den kapatılabilir
 - Platform bazlı kurallar: Spotify, YouTube, YouTube Music, Apple Music, Netflix, Prime Video, Disney+, Twitch,
   X, Facebook, Instagram, TikTok, SoundCloud, Deezer, VLC, Medya Oynatıcı ve "Diğer"
   (her biri: Hep göster / Süreli (saniye) / Gizle)
@@ -33,3 +36,7 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.
 - Yeni platform eklemek için `Platforms.cs` içindeki listeye bir satır eklemeniz yeterli.
+
+## Sorun giderme
+Hata günlüğü: `%AppData%\QuickMedia\log.txt` (Ayarlar > Hakkında > Günlük dosyası > Aç).
+Kısayol kaydı başarısızsa hata kodu hem tray bildiriminde hem Ayarlar > Kısayol'da görünür (1409 = başka uygulama kullanıyor).

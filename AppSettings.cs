@@ -27,7 +27,8 @@ public sealed class AppSettings
     public bool AlwaysHideWhenPaused { get; set; }
 
     // Görünüm
-    public string Theme { get; set; } = "Dark";          // Dark | Light
+    public string FlyoutStyle { get; set; } = "Classic"; // Classic | Compact | Pill | Cover | Island
+    public string Theme { get; set; } = "Dark";          // Dark | Light | Midnight
     public string AccentColor { get; set; } = "#8AB4F8";
     public double BackgroundOpacity { get; set; } = 0.8; // 0xCC
     public bool BlurEnabled { get; set; } = true;

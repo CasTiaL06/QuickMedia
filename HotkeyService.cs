@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
 
@@ -13,11 +14,17 @@ public sealed class HotkeyService : IDisposable
 
     private readonly HwndSource _src;
     public event Action? Pressed;
+    public bool IsRegistered { get; private set; }
+    public int LastError { get; private set; }
 
     public HotkeyService()
     {
-        // Mesaj-only pencere (HWND_MESSAGE)
-        var p = new HwndSourceParameters("QuickMediaHotkey") { ParentWindow = new IntPtr(-3), Width = 0, Height = 0 };
+        // Mesaj-only (HWND_MESSAGE) yerine normal ama görünmez üst düzey pencere:
+        // WM_HOTKEY bu pencerede güvenilir şekilde alınır.
+        var p = new HwndSourceParameters("QuickMediaHotkey")
+        {
+            Width = 0, Height = 0, PositionX = 0, PositionY = 0,
+        };
         _src = new HwndSource(p);
         _src.AddHook(WndProc);
     }
@@ -27,6 +34,7 @@ public sealed class HotkeyService : IDisposable
         if (msg == WM_HOTKEY && wParam.ToInt32() == HotkeyId)
         {
             handled = true;
+            Log.Write("Kısayol tetiklendi");
             Pressed?.Invoke();
         }
         return IntPtr.Zero;
@@ -36,8 +44,12 @@ public sealed class HotkeyService : IDisposable
     {
         Unregister();
         uint vk = (uint)KeyInterop.VirtualKeyFromKey(key);
-        // ModifierKeys: Alt=1, Control=2, Shift=4, Windows=8  → Win32 MOD_* ile aynı değerler
-        return Native.RegisterHotKey(_src.Handle, HotkeyId, (uint)mods | MOD_NOREPEAT, vk);
+        // ModifierKeys: Alt=1, Control=2, Shift=4, Windows=8 → Win32 MOD_* ile aynı
+        bool ok = Native.RegisterHotKey(_src.Handle, HotkeyId, (uint)mods | MOD_NOREPEAT, vk);
+        LastError = ok ? 0 : Marshal.GetLastWin32Error();
+        IsRegistered = ok;
+        Log.Write(ok ? $"Kısayol kaydedildi: {Describe(mods, key)}" : $"Kısayol kaydedilemedi: {Describe(mods, key)} (hata {LastError})");
+        return ok;
     }
 
     public bool RegisterFromSettings()
@@ -46,7 +58,11 @@ public sealed class HotkeyService : IDisposable
         return Register(m, k);
     }
 
-    public void Unregister() => Native.UnregisterHotKey(_src.Handle, HotkeyId);
+    public void Unregister()
+    {
+        Native.UnregisterHotKey(_src.Handle, HotkeyId);
+        IsRegistered = false;
+    }
 
     public static (ModifierKeys, Key) Parse(AppSettings s)
     {

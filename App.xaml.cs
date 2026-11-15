@@ -12,6 +12,9 @@ public partial class App : Application
     public static FlyoutController Flyout { get; private set; } = null!;
     public static HotkeyService Hotkey { get; private set; } = null!;
 
+    /// <summary>Ayarlar uygulandığında (tema, stil, boyut...) tetiklenir.</summary>
+    public static event Action? Applied;
+
     private Mutex? _mutex;
     private TrayService? _tray;
     private SettingsWindow? _settingsWindow;
@@ -20,32 +23,73 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        DispatcherUnhandledException += (_, ex) =>
+        {
+            Log.Write("Yakalanmamış hata: " + ex.Exception);
+            ex.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Write("Ölümcül hata: " + ex.ExceptionObject);
+
         _mutex = new Mutex(true, "QuickMedia.SingleInstance", out bool created);
         if (!created) { Shutdown(); return; }
 
-        Settings = SettingsStore.Load();
-        ThemeManager.Apply(Settings);
+        try
+        {
+            Log.Write("QuickMedia başlıyor");
+            Settings = SettingsStore.Load();
+            ThemeManager.Apply(Settings);
 
-        Media = new MediaService();
-        Flyout = new FlyoutController(new FlyoutWindow());
+            Media = new MediaService();
+            Flyout = new FlyoutController(new FlyoutWindow());
 
-        Hotkey = new HotkeyService();
-        Hotkey.Pressed += () => Dispatcher.BeginInvoke(() => Flyout.Toggle());
+            Hotkey = new HotkeyService();
+            Hotkey.Pressed += () => Dispatcher.BeginInvoke(() =>
+            {
+                try { Flyout.Toggle(); }
+                catch (Exception ex) { Log.Write("Toggle hatası: " + ex); }
+            });
 
-        _tray = new TrayService();
-        if (!Hotkey.RegisterFromSettings())
-            _tray.Notify($"{HotkeyService.Describe(Settings)} kısayolu başka bir uygulama tarafından kullanılıyor. Ayarlar > Kısayol bölümünden değiştirin.");
+            _tray = new TrayService();
+            if (!Hotkey.RegisterFromSettings())
+                _tray.Notify($"{HotkeyService.Describe(Settings)} kısayolu kaydedilemedi (hata {Hotkey.LastError}). Ayarlar > Kısayol bölümünden başka bir tane seçin.");
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Başlatma hatası: " + ex);
+            MessageBox.Show("QuickMedia başlatılamadı:\n" + ex.Message + "\n\nGünlük: " + Log.FilePath, "QuickMedia");
+            Shutdown();
+            return;
+        }
 
-        Media.Changed += (info, ev) => Dispatcher.BeginInvoke(() => Flyout.OnMediaChanged(info, ev));
+        Media.Changed += (info, ev) => Dispatcher.BeginInvoke(() =>
+        {
+            try { Flyout.OnMediaChanged(info, ev); }
+            catch (Exception ex) { Log.Write("Medya olayı hatası: " + ex); }
+        });
         try { await Media.InitAsync(); }
-        catch (Exception ex) { _tray.Notify("Medya servisi başlatılamadı: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Log.Write("Medya servisi hatası: " + ex);
+            _tray?.Notify("Medya servisi başlatılamadı: " + ex.Message);
+        }
     }
 
     public static void ApplyAll()
     {
         ThemeManager.Apply(Settings);
         Flyout.ApplySettings();
+        Applied?.Invoke();
     }
+
+    public static void SetStyle(string id)
+    {
+        Settings.FlyoutStyle = FlyoutStyles.Normalize(id);
+        SettingsStore.Save(Settings);
+        ApplyAll();
+        Flyout.Preview();
+    }
+
+    public static void CycleStyle() => SetStyle(FlyoutStyles.Next(Settings.FlyoutStyle));
 
     public static void ShowSettings()
     {
