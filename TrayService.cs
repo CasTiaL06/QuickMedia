@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
 
@@ -10,6 +11,8 @@ public sealed class TrayService : IDisposable
     private readonly Forms.ToolStripMenuItem _toggle;
     private readonly Forms.ToolStripMenuItem _styleMenu;
     private readonly Forms.ToolStripMenuItem _pin;
+    private readonly Forms.ToolStripMenuItem _settingsItem;
+    private readonly Forms.ToolStripMenuItem _exitItem;
 
     public TrayService()
     {
@@ -28,10 +31,10 @@ public sealed class TrayService : IDisposable
             Renderer = renderer,
         };
 
-        _toggle = new Forms.ToolStripMenuItem("Göster / Gizle");
+        _toggle = new Forms.ToolStripMenuItem(L.T("Göster / Gizle"));
         _toggle.Click += (_, _) => App.Flyout.Toggle();
 
-        _styleMenu = new Forms.ToolStripMenuItem("Stil");
+        _styleMenu = new Forms.ToolStripMenuItem(L.T("Stil"));
         if (_styleMenu.DropDown is Forms.ToolStripDropDownMenu dm) { dm.ShowImageMargin = false; dm.ShowCheckMargin = true; }
         _styleMenu.DropDown.BackColor = back;
         _styleMenu.DropDown.ForeColor = fore;
@@ -39,27 +42,36 @@ public sealed class TrayService : IDisposable
         foreach (var (id, name) in FlyoutStyles.All)
         {
             var styleId = id;
-            var item = new Forms.ToolStripMenuItem(name) { Tag = styleId };
+            var item = new Forms.ToolStripMenuItem(L.T(name)) { Tag = styleId };
             item.Click += (_, _) => App.SetStyle(styleId);
             _styleMenu.DropDownItems.Add(item);
         }
 
-        _pin = new Forms.ToolStripMenuItem("Üstte sabitle");
+        _pin = new Forms.ToolStripMenuItem(L.T("Üstte sabitle"));
         _pin.Click += (_, _) => App.Flyout.SetPinned(!App.Settings.Pinned);
 
-        var settings = new Forms.ToolStripMenuItem("Ayarlar");
+        _settingsItem = new Forms.ToolStripMenuItem(L.T("Ayarlar"));
+        var settings = _settingsItem;
         settings.Click += (_, _) => App.ShowSettings();
 
-        var exit = new Forms.ToolStripMenuItem("Çıkış");
+        _exitItem = new Forms.ToolStripMenuItem(L.T("Çıkış"));
+        var exit = _exitItem;
         exit.Click += (_, _) => App.Current.Shutdown();
 
         menu.Items.AddRange(new Forms.ToolStripItem[] { _toggle, _pin, _styleMenu, settings, new Forms.ToolStripSeparator(), exit });
         menu.Opening += (_, _) =>
         {
+            _toggle.Text = L.T("Göster / Gizle");
             _toggle.ShortcutKeyDisplayString = HotkeyService.Describe(HotkeyAction.Toggle);
-            _pin.Text = App.Settings.Pinned ? "Sabitlemeyi kaldır" : "Üstte sabitle";
+            _pin.Text = L.T(App.Settings.Pinned ? "Sabitlemeyi kaldır" : "Üstte sabitle");
+            _styleMenu.Text = L.T("Stil");
+            _settingsItem.Text = L.T("Ayarlar");
+            _exitItem.Text = L.T("Çıkış");
             foreach (Forms.ToolStripMenuItem it in _styleMenu.DropDownItems)
+            {
                 it.Checked = (string?)it.Tag == FlyoutStyles.Normalize(App.Settings.FlyoutStyle);
+                it.Text = L.T(FlyoutStyles.All.First(a => a.Id == (string?)it.Tag).Name);
+            }
         };
 
         _icon.ContextMenuStrip = menu;

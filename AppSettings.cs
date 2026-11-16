@@ -30,7 +30,9 @@ public sealed class AppSettings
 {
     // Genel
     public bool Enabled { get; set; } = true;
-    public bool Pinned { get; set; }                     // flyout kapanmaz, hep üstte kalır
+    public bool Pinned { get; set; }                     // medya varken flyout kapanmaz, hep üstte kalır
+    public bool ShowPinButton { get; set; } = true;      // flyout köşesindeki iğne düğmesi
+    public string Language { get; set; } = "auto";       // auto | tr | en
     public bool StartWithWindows { get; set; }
 
     // Görünürlük koşulları

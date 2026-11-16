@@ -39,6 +39,12 @@ public partial class FlyoutWindow : Window
 
     public bool IsShown => _shown;
 
+    /// <summary>Önizleme için örnek medya (gerçek medya yokken).</summary>
+    public MediaInfo? Demo { get; set; }
+    public bool IsDemo => Demo != null && !App.Displayed.HasSession;
+    private MediaInfo Cur => IsDemo ? Demo! : App.Displayed;
+    private string _badgeIconId = "";
+
     public FlyoutWindow()
     {
         InitializeComponent();
@@ -78,12 +84,22 @@ public partial class FlyoutWindow : Window
 
     public void UpdatePin()
     {
-        bool pinned = App.Settings.Pinned;
-        bool vis = pinned || Root.IsMouseOver;
+        var s = App.Settings;
+        bool pinned = s.Pinned;
+        bool vis = s.ShowPinButton && (pinned || Root.IsMouseOver);
         PinBtn.Opacity = vis ? 1 : 0;
         PinBtn.IsHitTestVisible = vis;
         PinBtn.Tag = pinned ? "Pinned" : null;
-        PinBtn.ToolTip = pinned ? "Sabitlemeyi kaldır" : "Üstte sabitle";
+        PinBtn.ToolTip = L.T(pinned ? "Sabitlemeyi kaldır" : "Üstte sabitle");
+    }
+
+    private void LocalizeStatic()
+    {
+        GearBtn.ToolTip = L.T("Ayarlar");
+        MuteBtn.ToolTip = L.T("Bu uygulamanın sesini aç / kapat");
+        PrevBtn.ToolTip = L.T("Önceki");
+        PlayBtn.ToolTip = L.T("Oynat / Duraklat");
+        NextBtn.ToolTip = L.T("Sonraki");
     }
 
     private void Pin_Click(object sender, RoutedEventArgs e) => App.Flyout.SetPinned(!App.Settings.Pinned);
@@ -401,7 +417,8 @@ public partial class FlyoutWindow : Window
         V(OrbLabel, label);
         V(OrbSub, orbSub);
 
-        Update(App.Displayed);
+        LocalizeStatic();
+        Update(Cur);
         UpdateSpin();
         UpdatePin();
     }
@@ -414,14 +431,19 @@ public partial class FlyoutWindow : Window
         bool has = i.HasSession;
         string artist = has ? (string.IsNullOrEmpty(i.Artist) ? i.Album : i.Artist) : "";
 
-        TitleText.Text = has ? i.Title : "Medya oynatılmıyor";
-        ArtistText.Text = has ? artist : "Bir şey oynatınca burada görünür";
-        OrbText.Text = has ? i.Title : "Medya yok";
+        TitleText.Text = has ? i.Title : L.T("Medya oynatılmıyor");
+        ArtistText.Text = has ? artist : L.T("Bir şey oynatınca burada görünür");
+        OrbText.Text = has ? i.Title : L.T("Medya yok");
         OrbSub.Text = artist;
         V(ArtistText, _showArtist);
         V(OrbSub, _orbSub && has && artist.Length > 0);
         Card.ToolTip = _miniTip && has ? (artist.Length > 0 ? $"{i.Title} — {artist}" : i.Title) : null;
-        BadgeText.Text = Platforms.Get(i.PlatformId).Name;
+        BadgeText.Text = L.T(Platforms.Get(i.PlatformId).Name);
+        if (_badgeIconId != i.PlatformId)
+        {
+            _badgeIconId = i.PlatformId;
+            BadgeIcon.Content = PlatformIcons.Create(i.PlatformId, 14);
+        }
         V(BadgeBorder, _showBadge && has && s.ShowPlatformBadge);
         PlayBtn.Content = i.IsPlaying ? "\uE769" : "\uE768";
 
@@ -450,7 +472,7 @@ public partial class FlyoutWindow : Window
     /// <summary>Plak stilleri: müzik çalarken kapak yavaşça döner.</summary>
     private void UpdateSpin()
     {
-        bool spin = _shown && _ringStyle && App.Settings.Animations && App.Displayed.IsPlaying;
+        bool spin = _shown && _ringStyle && App.Settings.Animations && Cur.IsPlaying;
         if (spin == _spinning) return;
         _spinning = spin;
 
@@ -472,12 +494,13 @@ public partial class FlyoutWindow : Window
 
     private void RefreshLive()
     {
-        var cur = App.Displayed;   // "Gizle" seçilen kaynakların bilgisi hiçbir yerde kullanılmaz
+        var cur = Cur;   // "Gizle" seçilen kaynakların bilgisi hiçbir yerde kullanılmaz
 
         bool needTimeline = ProgressPanel.Visibility == Visibility.Visible || OrbRing.Visibility == Visibility.Visible;
         if (needTimeline)
         {
-            var tl = cur.HasSession ? App.Media.GetTimeline() : null;
+            (TimeSpan Pos, TimeSpan Dur)? tl = cur.HasSession ? App.Media.GetTimeline() : null;
+            if (IsDemo) tl = (TimeSpan.FromSeconds(95), TimeSpan.FromSeconds(238));   // önizleme için örnek ilerleme
             _lastDur = tl?.Dur.TotalSeconds ?? 0;
             double ratio = tl is { } t && t.Dur.TotalSeconds > 0 ? t.Pos.TotalSeconds / t.Dur.TotalSeconds : 0;
             bool hold = _seeking || DateTime.Now < _seekHold;   // atlama sırasında çubuk geri zıplamasın
@@ -600,6 +623,7 @@ public partial class FlyoutWindow : Window
         if (!_shown) return;
         _shown = false;
         _tick.Stop();
+        Demo = null;
         UpdateSpin();
         Animate(false);
     }

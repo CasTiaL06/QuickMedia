@@ -18,7 +18,7 @@
         <StackPanel x:Name="BrandHost" DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,0,26">
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="QuickMedia" FontSize="17" FontWeight="SemiBold"/>
-            <TextBlock Text="Medya flyout" Style="{StaticResource Hint}"/>
+            <TextBlock x:Name="BrandSub" Text="Medya flyout" Style="{StaticResource Hint}"/>
           </StackPanel>
         </StackPanel>
         <StackPanel x:Name="FooterHost" DockPanel.Dock="Bottom"/>

@@ -41,6 +41,12 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Üstte sabitle: flyout köşesindeki küçük iğne düğmesi (üstüne gelince görünür), tray menüsü veya Ayarlar > Genel
 - "Gizle" seçilen kaynaklar flyout'ta hiçbir şekilde (bilgisi bile) görünmez
 
+- Dil: Türkçe / English / Otomatik (Ayarlar > Genel > Dil). Çeviriler `Loc.cs` içindeki tabloda
+- Platform simgeleri koddan çizilmiş sade marka logolarıdır. Resmi logoları kullanmak için exe'nin yanına
+  `Icons` klasörü açıp platform kimliğiyle PNG koyun (spotify.png, youtube.png, twitch.png, x → twitter.png ...);
+  bunlar otomatik olarak öncelik alır
+- Flyout yalnızca gösterilecek medya varken açılır; medya yokken ya da kaynak "Gizle" ise hiç görünmez
+
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.

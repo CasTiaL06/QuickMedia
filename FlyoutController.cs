@@ -18,7 +18,7 @@ public sealed class FlyoutController
         _hide.Tick += (_, _) =>
         {
             _hide.Stop();
-            if (App.Settings.Pinned) return;
+            if (App.Settings.Pinned && HasDisplayable(App.Media.Current)) return;
             if (_win.IsMouseOver) { _hide.Interval = TimeSpan.FromSeconds(1); _hide.Start(); return; } // fare üstündeyken kapanma
             _manual = false;
             _win.HideFlyout();
@@ -32,7 +32,10 @@ public sealed class FlyoutController
     public static bool IsHidden(MediaInfo i) =>
         i.HasSession && App.Settings.GetRule(i.PlatformId).Mode == VisibilityMode.Never;
 
-    /// <summary>Flyout'a verilecek bilgi: gizli kaynaklar için boş (medya yok) görünüm.</summary>
+    /// <summary>Flyout'ta gösterilebilecek bir medya var mı? (oturum var ve gizli değil)</summary>
+    public static bool HasDisplayable(MediaInfo i) => i.HasSession && !IsHidden(i);
+
+    /// <summary>Flyout'a verilecek bilgi: gizli kaynaklar için boş görünüm.</summary>
     public static MediaInfo Shown(MediaInfo i) => IsHidden(i) ? new MediaInfo() : i;
 
     public void OnMediaChanged(MediaInfo info, MediaEvent ev)
@@ -53,18 +56,12 @@ public sealed class FlyoutController
     {
         var s = App.Settings;
         if (!s.Enabled) { HideNow(); return; }
+
+        // Gösterilecek medya yok (hiç oturum yok ya da kaynak gizli): flyout hiç görünmez
+        if (!HasDisplayable(info)) { _manual = false; HideNow(); return; }
         if (_manual) return;
 
-        bool full = s.HideInFullscreen && Native.IsFullscreenBusy();
-
-        // Medya yok ya da kaynak gizli: hiçbir şey gösterilmez (sabitliyse boş görünüm kalır)
-        if (!info.HasSession || IsHidden(info))
-        {
-            if (s.Pinned && !_suppressed && !full) Show(0); else HideNow();
-            return;
-        }
-
-        if (full) { HideNow(); return; }
+        if (s.HideInFullscreen && Native.IsFullscreenBusy()) { HideNow(); return; }
         if (s.Pinned) { if (!_suppressed) Show(0); return; }
 
         var rule = s.GetRule(info.PlatformId);
@@ -81,18 +78,22 @@ public sealed class FlyoutController
     private void Reevaluate()
     {
         var s = App.Settings;
-        if (_manual || !s.Enabled) return;
+        if (!s.Enabled) return;
         var info = App.Media.Current;
 
-        if (s.Pinned) { if (!_suppressed) Apply(info, false); return; }
-        if (!info.HasSession) return;
+        if (!HasDisplayable(info))
+        {
+            if (_win.IsShown && !_win.IsDemo) { _manual = false; HideNow(); }
+            return;
+        }
+        if (_manual) return;
 
-        if (IsHidden(info)) { if (_win.IsShown) HideNow(); return; }
+        if (s.Pinned) { if (!_suppressed) Apply(info, false); return; }
         if (s.GetRule(info.PlatformId).Mode == VisibilityMode.Always) Apply(info, false);
         else if (_win.IsShown && s.HideInFullscreen && Native.IsFullscreenBusy()) HideNow();
     }
 
-    /// <summary>Kısayol: görünüyorsa gizle, gizliyse aç.</summary>
+    /// <summary>Kısayol: görünüyorsa gizle, gizliyse aç (gösterilecek medya yoksa hiçbir şey yapmaz).</summary>
     public void Toggle()
     {
         if (!App.Settings.Enabled) return;
@@ -101,19 +102,29 @@ public sealed class FlyoutController
             _manual = false;
             _suppressed = true;
             HideNow();
+            return;
         }
-        else
-        {
-            _manual = true;
-            _suppressed = false;
-            _win.Update(App.Displayed);
-            Show(0);
-        }
+        if (!HasDisplayable(App.Media.Current)) return;   // boş kutu göstermeyiz
+        _manual = true;
+        _suppressed = false;
+        _win.Demo = null;
+        _win.Update(App.Displayed);
+        Show(0);
     }
 
+    /// <summary>Ayarlardaki önizleme: medya yoksa örnek bir şarkıyla gösterir.</summary>
     public void Preview()
     {
-        _win.Update(App.Displayed);
+        if (HasDisplayable(App.Media.Current)) { _win.Demo = null; _win.Update(App.Displayed); }
+        else
+        {
+            _win.Demo = new MediaInfo
+            {
+                HasSession = true, IsPlaying = true, PlatformId = "spotify",
+                Title = L.T("Örnek şarkı"), Artist = "QuickMedia", Album = "",
+            };
+            _win.Update(_win.Demo);
+        }
         Show(3);
     }
 
@@ -121,13 +132,14 @@ public sealed class FlyoutController
     public void NudgeVolume()
     {
         var s = App.Settings;
-        if (!s.Enabled || !s.ShowVolumeControls || IsHidden(App.Media.Current)) return;
+        if (!s.Enabled || !s.ShowVolumeControls || !HasDisplayable(App.Media.Current)) return;
         if (_win.IsShown) { _win.Poke(); return; }
+        _win.Demo = null;
         _win.Update(App.Displayed);
         Show(2);
     }
 
-    /// <summary>Flyout'u ekranda sabitler (kapanmaz, hep üstte kalır) ya da sabitlemeyi kaldırır.</summary>
+    /// <summary>Medya çalarken flyout'u ekranda sabitler (kapanmaz, hep üstte kalır) ya da sabitlemeyi kaldırır.</summary>
     public void SetPinned(bool pinned)
     {
         var s = App.Settings;
@@ -136,16 +148,15 @@ public sealed class FlyoutController
         _manual = false;
         _suppressed = false;
 
-        if (pinned)
+        var info = App.Media.Current;
+        if (HasDisplayable(info))
         {
-            _win.Update(App.Displayed);
-            Show(0);
-        }
-        else
-        {
-            var info = App.Media.Current;
-            bool always = info.HasSession && !IsHidden(info) && s.GetRule(info.PlatformId).Mode == VisibilityMode.Always;
-            if (always) Show(0); else Show(2);   // kısa süre sonra normal davranışa döner
+            if (pinned) { _win.Demo = null; _win.Update(App.Displayed); Show(0); }
+            else
+            {
+                bool always = s.GetRule(info.PlatformId).Mode == VisibilityMode.Always;
+                if (always) Show(0); else Show(2);   // kısa süre sonra normal davranışa döner
+            }
         }
         _win.UpdatePin();
         App.RaiseApplied();
@@ -161,7 +172,7 @@ public sealed class FlyoutController
     {
         _win.ShowFlyout();
         _hide.Stop();
-        if (seconds > 0 && !App.Settings.Pinned)
+        if (seconds > 0 && !(App.Settings.Pinned && HasDisplayable(App.Media.Current)))
         {
             _hide.Interval = TimeSpan.FromSeconds(seconds);
             _hide.Start();

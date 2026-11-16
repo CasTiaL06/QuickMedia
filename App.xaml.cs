@@ -37,6 +37,7 @@ public partial class App : Application
         {
             Log.Write("QuickMedia başlıyor");
             Settings = SettingsStore.Load();
+            L.Set(Settings.Language);
             ThemeManager.Apply(Settings);
 
             Media = new MediaService();
@@ -52,12 +53,12 @@ public partial class App : Application
             _tray = new TrayService();
             int bad = Hotkey.RegisterAllFromSettings();
             if (bad > 0)
-                _tray.Notify($"{bad} kısayol kaydedilemedi. Ayarlar > Kısayollar bölümünden başka bir kombinasyon seçin (günlük: {Log.FilePath}).");
+                _tray.Notify(L.F("{0} kısayol kaydedilemedi. Ayarlar > Kısayollar bölümünden başka bir kombinasyon seçin (günlük: {1}).", bad, Log.FilePath));
         }
         catch (Exception ex)
         {
             Log.Write("Başlatma hatası: " + ex);
-            MessageBox.Show("QuickMedia başlatılamadı:\n" + ex.Message + "\n\nGünlük: " + Log.FilePath, "QuickMedia");
+            MessageBox.Show(L.T("QuickMedia başlatılamadı:") + "\n" + ex.Message + "\n\n" + L.T("Günlük:") + " " + Log.FilePath, "QuickMedia");
             Shutdown();
             return;
         }
@@ -71,7 +72,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Write("Medya servisi hatası: " + ex);
-            _tray?.Notify("Medya servisi başlatılamadı: " + ex.Message);
+            _tray?.Notify(L.T("Medya servisi başlatılamadı:") + " " + ex.Message);
         }
     }
 
@@ -129,14 +130,14 @@ public partial class App : Application
 
     public static void CycleStyle() => SetStyle(FlyoutStyles.Next(Settings.FlyoutStyle));
 
-    public static void ShowSettings()
+    public static void ShowSettings(string? page = null)
     {
         var app = (App)Current;
         try
         {
             if (app._settingsWindow == null)
             {
-                app._settingsWindow = new SettingsWindow();
+                app._settingsWindow = new SettingsWindow(page ?? "General");
                 app._settingsWindow.Closed += (_, _) => app._settingsWindow = null;
                 app._settingsWindow.Show();
             }
@@ -146,8 +147,26 @@ public partial class App : Application
         {
             Log.Write("Ayarlar açılamadı: " + ex);
             app._settingsWindow = null;
-            MessageBox.Show("Ayarlar penceresi açılamadı:\n\n" + ex.Message + "\n\nAyrıntı: " + Log.FilePath, "QuickMedia");
+            MessageBox.Show(L.T("Ayarlar penceresi açılamadı:") + "\n\n" + ex.Message + "\n\n" + L.T("Ayrıntı:") + " " + Log.FilePath, "QuickMedia");
         }
+    }
+
+    /// <summary>Dili değiştirir; ayarlar penceresi aynı sayfada yeni dille yeniden açılır.</summary>
+    public static void ChangeLanguage(string setting)
+    {
+        Settings.Language = setting;
+        SettingsStore.Save(Settings);
+        L.Set(setting);
+        ApplyAll();
+
+        var app = (App)Current;
+        var old = app._settingsWindow;
+        string page = old?.CurrentPage ?? "General";
+        app.Dispatcher.BeginInvoke(() =>
+        {
+            if (old != null) { app._settingsWindow = null; old.Close(); }
+            ShowSettings(page);
+        });
     }
 
     protected override void OnExit(ExitEventArgs e)

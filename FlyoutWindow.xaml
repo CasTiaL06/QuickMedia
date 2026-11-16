@@ -74,7 +74,10 @@
           <Border x:Name="BadgeBorder" HorizontalAlignment="Left" Margin="0,8,0,0" Padding="7,2" CornerRadius="4"
                   Background="{DynamicResource SurfaceBrush}"
                   BorderBrush="{DynamicResource BorderBrushC}" BorderThickness="1">
-            <TextBlock x:Name="BadgeText" FontSize="11" Foreground="{DynamicResource Text2Brush}"/>
+            <StackPanel Orientation="Horizontal">
+              <ContentControl x:Name="BadgeIcon" Width="14" Height="14" Margin="0,0,5,0" VerticalAlignment="Center" IsTabStop="False"/>
+              <TextBlock x:Name="BadgeText" FontSize="11" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"/>
+            </StackPanel>
           </Border>
         </StackPanel>
 

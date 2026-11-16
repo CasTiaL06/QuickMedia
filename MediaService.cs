@@ -73,7 +73,16 @@ public sealed class MediaService
                            GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
 
             string title = props.Title ?? "", artist = props.Artist ?? "";
-            if (title.Length == 0 && artist.Length == 0) return;
+            if (title.Length == 0 && artist.Length == 0)
+            {
+                // Oturum var ama içinde şarkı/video yok (ör. Spotify açık ama boşta): eski bilgiyi tutma
+                if (v == _version && Current.HasSession)
+                {
+                    Current = new MediaInfo();
+                    Changed?.Invoke(Current, MediaEvent.Cleared);
+                }
+                return;
+            }
 
             var prev = Current;
             string appId = s.SourceAppUserModelId ?? "";

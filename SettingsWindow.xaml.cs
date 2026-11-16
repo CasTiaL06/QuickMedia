@@ -26,7 +26,7 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, FrameworkElement> _pages = new();
 
     // Denetimler
-    private CheckBox _enabled = null!, _autoStart = null!, _portable = null!, _pinned = null!;
+    private CheckBox _enabled = null!, _autoStart = null!, _portable = null!, _pinned = null!, _pinBtn = null!;
     private CheckBox _track = null!, _play = null!, _fullscreen = null!, _paused = null!;
     private CheckBox _blur = null!, _anim = null!, _art = null!, _prog = null!, _ctrl = null!, _vol = null!, _badge = null!;
     private Slider _opacity = null!, _scale = null!;
@@ -37,8 +37,12 @@ public partial class SettingsWindow : Window
     private readonly List<(string Id, Border Tile)> _themeTiles = new();
     private readonly Dictionary<HotkeyAction, Button> _hotkeyBtns = new();
 
-    public SettingsWindow()
+    private string _page = "General";
+    public string CurrentPage => _page;
+
+    public SettingsWindow(string startPage = "General")
     {
+        _page = startPage;
         InitializeComponent();
 
         try
@@ -49,6 +53,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex) { Log.Write("Ayarlar logosu yüklenemedi: " + ex.Message); }
 
+        BrandSub.Text = L.T("Medya flyout");
         SourceInitialized += (_, _) => ApplyTitleBar();
         App.Applied += OnApplied;
         Closed += (_, _) => { App.Applied -= OnApplied; if (_capAction != null) EndCapture(); };
@@ -58,7 +63,7 @@ public partial class SettingsWindow : Window
         BuildPages();
         Step("Alt bilgi", BuildFooter);
         Step("Yükleme", Load);
-        Step("Sayfa", () => ShowPage("General"));
+        Step("Sayfa", () => ShowPage(_page));
     }
 
     private static void Step(string name, Action a)
@@ -74,6 +79,7 @@ public partial class SettingsWindow : Window
         bool was = _loading;
         _loading = true;
         if (_pinned != null) _pinned.IsChecked = App.Settings.Pinned;
+        UpdatePinStatus();
         _loading = was;
     }
 
@@ -102,7 +108,7 @@ public partial class SettingsWindow : Window
 
     private RadioButton Seg(string text, string group, object? tag, RoutedEventHandler click)
     {
-        var r = new RadioButton { Content = text, GroupName = group, Tag = tag, Style = Res("Seg") };
+        var r = new RadioButton { Content = L.T(text), GroupName = group, Tag = tag, Style = Res("Seg") };
         r.Click += click;
         return r;
     }
@@ -114,28 +120,22 @@ public partial class SettingsWindow : Window
         return b;
     }
 
-    /// <summary>Simge kutulu, üzerine gelince vurgulanan ayar satırı.</summary>
-    private Border Row(string title, string? desc, UIElement control, string glyph = "\uE713")
+    private Border RowCore(string title, string? desc, UIElement control, UIElement icon)
     {
-        var g = new Grid { Margin = new Thickness(12, 10, 14, 10) };
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var g = new Grid { Margin = new Thickness(14, 11, 16, 11) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
         g.ColumnDefinitions.Add(new ColumnDefinition());
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var icon = new TextBlock
-        {
-            Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 15,
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        };
-        Bind(icon, TextBlock.ForegroundProperty, "AccentBrush");
-        var chip = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(9), Margin = new Thickness(0, 0, 14, 0), Child = icon, VerticalAlignment = VerticalAlignment.Center };
-        Bind(chip, Border.BackgroundProperty, "SolidHoverBrush");
-        g.Children.Add(chip);
+        var fi = (FrameworkElement)icon;
+        fi.HorizontalAlignment = HorizontalAlignment.Left;
+        fi.VerticalAlignment = VerticalAlignment.Center;
+        g.Children.Add(fi);
 
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-        left.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
+        left.Children.Add(new TextBlock { Text = L.T(title), FontWeight = FontWeights.SemiBold });
         if (desc != null)
-            left.Children.Add(new TextBlock { Text = desc, Style = Res("Hint"), Margin = new Thickness(0, 2, 0, 0) });
+            left.Children.Add(new TextBlock { Text = L.T(desc), Style = Res("Hint"), Margin = new Thickness(0, 2, 0, 0) });
         Grid.SetColumn(left, 1);
         g.Children.Add(left);
 
@@ -147,6 +147,17 @@ public partial class SettingsWindow : Window
         return new Border { Style = Res("RowHover"), CornerRadius = new CornerRadius(8), Child = g };
     }
 
+    /// <summary>Sade simgeli, üzerine gelince hafifçe vurgulanan ayar satırı.</summary>
+    private Border Row(string title, string? desc, UIElement control, string glyph = "\uE713")
+    {
+        var icon = new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 16 };
+        Bind(icon, TextBlock.ForegroundProperty, "Text2Brush");
+        return RowCore(title, desc, control, icon);
+    }
+
+    /// <summary>Platform satırı: markanın kendi simgesiyle.</summary>
+    private Border RowIcon(string title, string? desc, UIElement control, UIElement icon) => RowCore(title, desc, control, icon);
+
     private Border Group(params UIElement[] rows)
     {
         var sp = new StackPanel { Margin = new Thickness(4) };
@@ -154,29 +165,28 @@ public partial class SettingsWindow : Window
         {
             if (i > 0)
             {
-                var sep = new Border { Height = 1, Margin = new Thickness(60, 2, 12, 2) };
+                var sep = new Border { Height = 1, Margin = new Thickness(52, 1, 12, 1), Opacity = 0.6 };
                 Bind(sep, Border.BackgroundProperty, "SolidBorderBrush");
                 sp.Children.Add(sep);
             }
             sp.Children.Add(rows[i]);
         }
-        var b = new Border { CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 22), Child = sp };
+        var b = new Border { CornerRadius = new CornerRadius(14), Margin = new Thickness(0, 0, 0, 24), Child = sp };
         Bind(b, Border.BackgroundProperty, "SolidSurfaceBrush");
-        Bind(b, Border.BorderBrushProperty, "SolidBorderBrush");
         return b;
     }
 
     private StackPanel PageHeader(string title, string subtitle)
     {
-        var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 24) };
-        sp.Children.Add(new TextBlock { Text = title, FontSize = 28, FontWeight = FontWeights.SemiBold });
-        sp.Children.Add(new TextBlock { Text = subtitle, Style = Res("Hint"), FontSize = 13, Margin = new Thickness(0, 4, 0, 0) });
+        var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 26) };
+        sp.Children.Add(new TextBlock { Text = L.T(title), FontSize = 26, FontWeight = FontWeights.SemiBold });
+        sp.Children.Add(new TextBlock { Text = L.T(subtitle), Style = Res("Hint"), FontSize = 13, Margin = new Thickness(0, 4, 0, 0) });
         return sp;
     }
 
-    private TextBlock Section(string t) => new() { Text = t, FontWeight = FontWeights.SemiBold, FontSize = 11, Margin = new Thickness(6, 0, 0, 10), Opacity = 0.65 };
+    private TextBlock Section(string t) => new() { Text = L.T(t), FontWeight = FontWeights.SemiBold, FontSize = 11, Margin = new Thickness(6, 0, 0, 10), Opacity = 0.6 };
 
-    private TextBlock Note(string t) => new() { Text = t, Style = Res("Hint"), Margin = new Thickness(6, 0, 0, 20) };
+    private TextBlock Note(string t) => new() { Text = L.T(t), Style = Res("Hint"), Margin = new Thickness(6, 0, 0, 20) };
 
     private ScrollViewer Page(params UIElement[] kids)
     {
@@ -194,7 +204,7 @@ public partial class SettingsWindow : Window
 
     private Button Btn(string text, RoutedEventHandler click)
     {
-        var b = new Button { Content = text, Style = Res("FluentButton"), HorizontalAlignment = HorizontalAlignment.Left };
+        var b = new Button { Content = L.T(text), Style = Res("FluentButton"), HorizontalAlignment = HorizontalAlignment.Left };
         b.Click += click;
         return b;
     }
@@ -216,25 +226,38 @@ public partial class SettingsWindow : Window
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
             sp.Children.Add(new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 15, Width = 28, VerticalAlignment = VerticalAlignment.Center });
-            sp.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-            var rb = new RadioButton { Content = sp, GroupName = "nav", Tag = key, Style = Res("Nav"), IsChecked = key == "General" };
+            sp.Children.Add(new TextBlock { Text = L.T(label), VerticalAlignment = VerticalAlignment.Center });
+            var rb = new RadioButton { Content = sp, GroupName = "nav", Tag = key, Style = Res("Nav"), IsChecked = key == _page };
             rb.Click += (_, _) => ShowPage(key);
             NavHost.Children.Add(rb);
         }
     }
 
+    private TextBlock _pinStatus = null!;
+
     private void BuildFooter()
     {
+        _pinStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 10) };
+        Bind(_pinStatus, TextBlock.ForegroundProperty, "AccentBrush");
+        FooterHost.Children.Add(_pinStatus);
+        UpdatePinStatus();
+
         var preview = Btn("Önizleme göster", (_, _) => App.Flyout.Preview());
         preview.HorizontalAlignment = HorizontalAlignment.Stretch;
         FooterHost.Children.Add(preview);
         string ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
-        FooterHost.Children.Add(new TextBlock { Text = "Sürüm " + ver, Style = Res("Hint"), Margin = new Thickness(4, 10, 0, 0) });
+        FooterHost.Children.Add(new TextBlock { Text = L.F("Sürüm {0}", ver), Style = Res("Hint"), Margin = new Thickness(4, 10, 0, 0) });
+    }
+
+    private void UpdatePinStatus()
+    {
+        if (_pinStatus != null) _pinStatus.Text = App.Settings.Pinned ? "📌 " + L.T("Üstte sabit") : "";
     }
 
     private void ShowPage(string key)
     {
         if (!_pages.TryGetValue(key, out var p)) return;
+        _page = key;
         PageHost.Content = p;
         p.Opacity = 0;
         p.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
@@ -245,7 +268,7 @@ public partial class SettingsWindow : Window
     // Tüm denetimler önce oluşturulur; bir sayfa bozulsa bile alanlar null kalmaz.
     private void InitControls()
     {
-        _enabled = Sw(); _autoStart = Sw(); _portable = Sw(OnPortable); _pinned = Sw(OnPinned);
+        _enabled = Sw(); _autoStart = Sw(); _portable = Sw(OnPortable); _pinned = Sw(OnPinned); _pinBtn = Sw();
         _pathText = new TextBlock { Style = Res("Hint"), TextAlignment = TextAlignment.Right, MaxWidth = 280, VerticalAlignment = VerticalAlignment.Center };
 
         _track = Sw(); _play = Sw(); _fullscreen = Sw(); _paused = Sw();
@@ -289,7 +312,7 @@ public partial class SettingsWindow : Window
                 Log.Write($"Ayarlar sayfası '{key}' oluşturulamadı: {ex}");
                 _pages[key] = new ScrollViewer
                 {
-                    Content = new TextBlock { Text = "Bu sayfa yüklenemedi:\n\n" + ex.Message + "\n\nAyrıntı: " + Log.FilePath, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(36) }
+                    Content = new TextBlock { Text = L.T("Bu sayfa yüklenemedi:") + "\n\n" + ex.Message + "\n\n" + L.T("Ayrıntı:") + " " + Log.FilePath, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(36) }
                 };
             }
         }
@@ -301,11 +324,24 @@ public partial class SettingsWindow : Window
         {
             try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{SettingsStore.Dir}\"") { UseShellExecute = true }); } catch { }
         });
+
+        string lang = App.Settings.Language;
+        var langAuto = Seg("Otomatik", "lang", "auto", OnLanguage);
+        var langTr = Seg("Türkçe", "lang", "tr", OnLanguage);
+        var langEn = Seg("English", "lang", "en", OnLanguage);
+        langAuto.IsChecked = lang is not ("tr" or "en");
+        langTr.IsChecked = lang == "tr";
+        langEn.IsChecked = lang == "en";
+        var langRow = new StackPanel { Orientation = Orientation.Horizontal, Children = { langAuto, langTr, langEn } };
+
         return Page(
             PageHeader("Genel", "Uygulamanın temel davranışı."),
             Group(
                 Row("Flyout etkin", "Kapalıyken flyout hiçbir koşulda görünmez.", _enabled, "\uE7E8"),
-                Row("Üstte sabitle", "Flyout kapanmaz, her zaman diğer pencerelerin üstünde kalır. Flyout'un köşesindeki iğne düğmesiyle de açılıp kapanır.", _pinned, "\uE718"),
+                Row("Üstte sabitle", "Medya çalarken flyout kapanmaz ve her zaman diğer pencerelerin üstünde kalır. Kapalıyken normal kurallar (platform ayarları) geçerlidir.", _pinned, "\uE718"),
+                Row("Sabitleme düğmesini göster", "Flyout'un sağ üst köşesinde, üstüne gelince beliren küçük iğne düğmesi.", _pinBtn, "\uE718")),
+            Group(
+                Row("Dil", "Arayüz dili. 'Otomatik' Windows diline uyar.", SegHost(langRow), "\uE774"),
                 Row("Windows ile başlat", "Oturum açıldığında QuickMedia otomatik çalışsın.", _autoStart, "\uE768"),
                 Row("Taşınabilir mod", "Ayarlar exe'nin yanındaki settings.json'da tutulur; klasörü USB belleğe kopyalayıp her yerde çalıştırabilirsiniz.", _portable, "\uE74E")),
             Section("AYAR DOSYASI"),
@@ -524,7 +560,7 @@ public partial class SettingsWindow : Window
         var box = new Border { Width = 128, Height = 82, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(2), Child = canvas };
         Bind(box, Border.BackgroundProperty, "SolidBgBrush");
 
-        var label = new TextBlock { Text = name, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        var label = new TextBlock { Text = L.T(name), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
         var wrap = new StackPanel { Margin = new Thickness(0, 0, 12, 12), Cursor = Cursors.Hand, Background = Brushes.Transparent };
         wrap.Children.Add(box);
         wrap.Children.Add(label);
@@ -597,6 +633,7 @@ public partial class SettingsWindow : Window
 
         _enabled.IsChecked = s.Enabled;
         _pinned.IsChecked = s.Pinned;
+        _pinBtn.IsChecked = s.ShowPinButton;
         _autoStart.IsChecked = s.StartWithWindows;
         _portable.IsChecked = SettingsStore.IsPortable;
         _pathText.Text = SettingsStore.FilePath;
@@ -633,6 +670,7 @@ public partial class SettingsWindow : Window
         var s = App.Settings;
 
         s.Enabled = _enabled.IsChecked == true;
+        s.ShowPinButton = _pinBtn.IsChecked == true;
         bool autoStart = _autoStart.IsChecked == true;
         if (autoStart != s.StartWithWindows) AutoStart.Set(autoStart);
         s.StartWithWindows = autoStart;
@@ -667,6 +705,12 @@ public partial class SettingsWindow : Window
     private void OnChanged(object sender, RoutedEventArgs e) { if (!_loading) Collect(); }
     private void OnSlider(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!_loading) Collect(); }
 
+    private void OnLanguage(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        App.ChangeLanguage((string)((RadioButton)sender).Tag!);
+    }
+
     private void OnPinned(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
@@ -689,7 +733,7 @@ public partial class SettingsWindow : Window
             _loading = true;
             _portable.IsChecked = !want;
             _loading = false;
-            MessageBox.Show("Bu klasöre yazılamadı. Taşınabilir mod için uygulamayı yazılabilir bir klasöre (ör. Masaüstü, USB bellek) koyun.",
+            MessageBox.Show(L.T("Bu klasöre yazılamadı. Taşınabilir mod için uygulamayı yazılabilir bir klasöre (ör. Masaüstü, USB bellek) koyun."),
                 "QuickMedia", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         _pathText.Text = SettingsStore.FilePath;
@@ -705,7 +749,7 @@ public partial class SettingsWindow : Window
             Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Margin = new Thickness(8, 0, 0, 0),
             BorderThickness = new Thickness(2), Cursor = Cursors.Hand, Tag = "",
             Child = new TextBlock { Text = "A", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
-            ToolTip = "Temanın kendi rengi",
+            ToolTip = L.T("Temanın kendi rengi"),
         };
         auto.MouseLeftButtonUp += (_, _) =>
         {
@@ -767,13 +811,13 @@ public partial class SettingsWindow : Window
 
             void Refresh()
             {
-                secText.Text = $"{rule.Seconds} sn";
+                secText.Text = $"{rule.Seconds} {L.T("sn")}";
                 stepper.Visibility = rule.Mode == VisibilityMode.Timed ? Visibility.Visible : Visibility.Hidden;
             }
 
             void AddRadio(string text, VisibilityMode mode)
             {
-                var rb = new RadioButton { Content = text, GroupName = "rule_" + p.Id, Style = Res("Seg"), IsChecked = rule.Mode == mode };
+                var rb = new RadioButton { Content = L.T(text), GroupName = "rule_" + p.Id, Style = Res("Seg"), IsChecked = rule.Mode == mode };
                 rb.Click += (_, _) =>
                 {
                     rule.Mode = mode;
@@ -800,8 +844,7 @@ public partial class SettingsWindow : Window
             Refresh();
 
             var ctrl = new StackPanel { Orientation = Orientation.Horizontal, Children = { SegHost(seg), stepper } };
-            string glyph = p.Id switch { "spotify" or "ytmusic" or "applemusic" or "soundcloud" or "deezer" => "\uE8D6", "lol" or "steam" => "\uE7FC", _ => "\uE714" };
-            rows.Add(Row(p.Name, p.Kind, ctrl, glyph));
+            rows.Add(RowIcon(p.Name, p.Kind, ctrl, PlatformIcons.Create(p.Id, 26)));
         }
         _platformHost.Children.Add(Group(rows.ToArray()));
     }
@@ -824,22 +867,22 @@ public partial class SettingsWindow : Window
     private void UpdateHotkeyText()
     {
         foreach (var (a, b) in _hotkeyBtns)
-            b.Content = _capAction == a ? "Tuşlara basın…  (Esc: iptal)" : HotkeyService.Describe(a);
+            b.Content = _capAction == a ? L.T("Tuşlara basın…  (Esc: iptal)") : HotkeyService.Describe(a);
     }
 
     private void UpdateHotkeyStatus(string? msg)
     {
-        if (msg != null) { _hotkeyStatus.Text = msg; return; }
+        if (msg != null) { _hotkeyStatus.Text = L.T(msg); return; }
 
         var failed = HotkeyRows.Where(r => App.Hotkey.ModeOf(r.A) == HotkeyMode.None).Select(r => r.Title).ToList();
         var compat = HotkeyRows.Where(r => App.Hotkey.ModeOf(r.A) == HotkeyMode.Compat).Select(r => r.Title).ToList();
 
         if (failed.Count > 0)
-            _hotkeyStatus.Text = "Kaydedilemeyen kısayol: " + string.Join(", ", failed) + ". Farklı bir kombinasyon deneyin.";
+            _hotkeyStatus.Text = L.F("Kaydedilemeyen kısayol: {0}. Farklı bir kombinasyon deneyin.", string.Join(", ", failed.Select(L.T)));
         else if (compat.Count > 0)
-            _hotkeyStatus.Text = "Tüm kısayollar etkin. (" + string.Join(", ", compat) + ": uyumluluk modu — başka bir uygulama da aynı kombinasyonu kullanıyor olabilir.)";
+            _hotkeyStatus.Text = L.F("Tüm kısayollar etkin. ({0}: uyumluluk modu — başka bir uygulama da aynı kombinasyonu kullanıyor olabilir.)", string.Join(", ", compat.Select(L.T)));
         else
-            _hotkeyStatus.Text = "Tüm kısayollar etkin.";
+            _hotkeyStatus.Text = L.T("Tüm kısayollar etkin.");
     }
 
     private void BeginCapture(HotkeyAction a)
@@ -890,7 +933,7 @@ public partial class SettingsWindow : Window
             var b = App.Settings.GetHotkey(other);
             if (b.Modifiers == (int)mods && b.Key == ks)
             {
-                UpdateHotkeyStatus($"Bu kombinasyon zaten '{TitleOf(other)}' için kullanılıyor.");
+                UpdateHotkeyStatus(L.F("Bu kombinasyon zaten '{0}' için kullanılıyor.", L.T(TitleOf(other))));
                 return;
             }
         }

@@ -208,7 +208,7 @@ public sealed class HotkeyService : IDisposable
         if (mods.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
         string k = key switch
         {
-            Key.Right => "→", Key.Left => "←", Key.Up => "↑", Key.Down => "↓", Key.Space => "Boşluk",
+            Key.Right => "→", Key.Left => "←", Key.Up => "↑", Key.Down => "↓", Key.Space => L.T("Boşluk"),
             _ => key.ToString()
         };
         if (k.Length == 2 && k[0] == 'D' && char.IsDigit(k[1])) k = k[1].ToString();
