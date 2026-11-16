@@ -30,6 +30,7 @@ public sealed class AppSettings
 {
     // Genel
     public bool Enabled { get; set; } = true;
+    public bool Pinned { get; set; }                     // flyout kapanmaz, hep üstte kalır
     public bool StartWithWindows { get; set; }
 
     // Görünürlük koşulları
@@ -41,7 +42,7 @@ public sealed class AppSettings
     // Görünüm
     public string FlyoutStyle { get; set; } = "Classic"; // Classic | Compact | Pill | Cover | Island
     public string Theme { get; set; } = "Dark";          // Dark | Light | Midnight
-    public string AccentColor { get; set; } = "#8AB4F8";
+    public string AccentColor { get; set; } = "";           // boş: temanın kendi vurgu rengi
     public double BackgroundOpacity { get; set; } = 0.8; // 0xCC
     public bool BlurEnabled { get; set; } = true;
     public bool Animations { get; set; } = true;

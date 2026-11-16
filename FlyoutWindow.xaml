@@ -32,9 +32,9 @@
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Yuvarlak plak: ilerleme halkası -->
+        <!-- Plak stilleri: ilerleme halkası -->
         <Grid x:Name="OrbRing" Width="144" Height="144" IsHitTestVisible="False" Visibility="Collapsed">
-          <Ellipse Width="140" Height="140" Stroke="{DynamicResource TrackBrush}" StrokeThickness="3"/>
+          <Ellipse x:Name="RingTrack" Width="140" Height="140" Stroke="{DynamicResource TrackBrush}" StrokeThickness="3"/>
           <Path x:Name="RingFill" Stroke="{DynamicResource ProgressBrush}" StrokeThickness="3"
                 StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                 HorizontalAlignment="Left" VerticalAlignment="Top"/>
@@ -57,6 +57,16 @@
 
         <Border x:Name="Scrim" Background="#8C000000" Visibility="Collapsed" IsHitTestVisible="False"/>
 
+        <Border x:Name="PosterFade" Visibility="Collapsed" IsHitTestVisible="False" Height="120"
+                VerticalAlignment="Bottom" CornerRadius="0,0,15,15">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+              <GradientStop Color="#00000000" Offset="0"/>
+              <GradientStop Color="#E0000000" Offset="1"/>
+            </LinearGradientBrush>
+          </Border.Background>
+        </Border>
+
         <StackPanel x:Name="InfoPanel" VerticalAlignment="Center">
           <TextBlock x:Name="TitleText" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
           <TextBlock x:Name="ArtistText" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
@@ -71,7 +81,11 @@
         <Border x:Name="OrbLabel" Visibility="Collapsed" CornerRadius="11" Padding="10,3"
                 Background="{DynamicResource BgBrush}"
                 BorderBrush="{DynamicResource BorderBrushC}" BorderThickness="1">
-          <TextBlock x:Name="OrbText" FontSize="12" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
+          <StackPanel>
+            <TextBlock x:Name="OrbText" FontSize="12" MaxWidth="170" TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+            <TextBlock x:Name="OrbSub" FontSize="11" MaxWidth="170" TextTrimming="CharacterEllipsis" TextAlignment="Center"
+                       Foreground="{DynamicResource Text2Brush}" Visibility="Collapsed"/>
+          </StackPanel>
         </Border>
 
         <Button x:Name="GearBtn" Style="{StaticResource IconButton}" Width="28" Height="28" FontSize="13"
@@ -87,7 +101,7 @@
                       Background="{DynamicResource ProgressBrush}"/>
             </Grid>
           </Grid>
-          <Grid x:Name="TimeRow" Margin="0,0,0,0">
+          <Grid x:Name="TimeRow">
             <TextBlock x:Name="PosText" Style="{StaticResource Hint}" Text="0:00"/>
             <TextBlock x:Name="DurText" Style="{StaticResource Hint}" Text="0:00" HorizontalAlignment="Right"/>
           </Grid>
@@ -107,5 +121,10 @@
         </StackPanel>
       </Grid>
     </Border>
+
+    <!-- Kartın sağ üst köşesinde küçük sabitleme düğmesi (üstüne gelince görünür) -->
+    <Button x:Name="PinBtn" Style="{StaticResource PinButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+            Margin="0,7,7,0" Content="&#xE718;" ToolTip="Üstte sabitle" Opacity="0" IsHitTestVisible="False"
+            Click="Pin_Click"/>
   </Grid>
 </Window>

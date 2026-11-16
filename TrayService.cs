@@ -9,6 +9,7 @@ public sealed class TrayService : IDisposable
     private readonly Forms.NotifyIcon _icon;
     private readonly Forms.ToolStripMenuItem _toggle;
     private readonly Forms.ToolStripMenuItem _styleMenu;
+    private readonly Forms.ToolStripMenuItem _pin;
 
     public TrayService()
     {
@@ -43,16 +44,20 @@ public sealed class TrayService : IDisposable
             _styleMenu.DropDownItems.Add(item);
         }
 
+        _pin = new Forms.ToolStripMenuItem("Üstte sabitle");
+        _pin.Click += (_, _) => App.Flyout.SetPinned(!App.Settings.Pinned);
+
         var settings = new Forms.ToolStripMenuItem("Ayarlar");
         settings.Click += (_, _) => App.ShowSettings();
 
         var exit = new Forms.ToolStripMenuItem("Çıkış");
         exit.Click += (_, _) => App.Current.Shutdown();
 
-        menu.Items.AddRange(new Forms.ToolStripItem[] { _toggle, _styleMenu, settings, new Forms.ToolStripSeparator(), exit });
+        menu.Items.AddRange(new Forms.ToolStripItem[] { _toggle, _pin, _styleMenu, settings, new Forms.ToolStripSeparator(), exit });
         menu.Opening += (_, _) =>
         {
             _toggle.ShortcutKeyDisplayString = HotkeyService.Describe(HotkeyAction.Toggle);
+            _pin.Text = App.Settings.Pinned ? "Sabitlemeyi kaldır" : "Üstte sabitle";
             foreach (Forms.ToolStripMenuItem it in _styleMenu.DropDownItems)
                 it.Checked = (string?)it.Tag == FlyoutStyles.Normalize(App.Settings.FlyoutStyle);
         };

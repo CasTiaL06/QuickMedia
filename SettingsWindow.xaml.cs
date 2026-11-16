@@ -9,6 +9,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 
 namespace QuickMedia;
@@ -18,33 +19,33 @@ public partial class SettingsWindow : Window
     private bool _loading = true;     // kurulum sırasında tetiklenen olayları yoksay
     private HotkeyAction? _capAction;
 
-    private static readonly string[] Accents = ["#8AB4F8", "#81C995", "#F28B82", "#FDD663", "#C58AF9", "#78D9EC"];
+    // "#8AB4F8" eski varsayılan olduğu için seçenekler arasında yok (boş = temanın rengi)
+    private static readonly string[] Accents = ["#4C8DF6", "#81C995", "#F28B82", "#FDD663", "#C58AF9", "#78D9EC"];
     private static readonly int[] Steps = [1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 60];
 
     private readonly Dictionary<string, FrameworkElement> _pages = new();
 
     // Denetimler
-    private CheckBox _enabled = null!, _autoStart = null!, _portable = null!;
+    private CheckBox _enabled = null!, _autoStart = null!, _portable = null!, _pinned = null!;
     private CheckBox _track = null!, _play = null!, _fullscreen = null!, _paused = null!;
     private CheckBox _blur = null!, _anim = null!, _art = null!, _prog = null!, _ctrl = null!, _vol = null!, _badge = null!;
-    private RadioButton _themeDark = null!, _themeLight = null!, _themeMid = null!;
     private Slider _opacity = null!, _scale = null!;
     private TextBlock _opacityText = null!, _scaleText = null!, _pathText = null!, _hotkeyStatus = null!;
     private StackPanel _accentPanel = null!, _platformHost = null!;
     private readonly List<RadioButton> _posRadios = new();
     private readonly List<(string Id, Border Tile)> _tiles = new();
+    private readonly List<(string Id, Border Tile)> _themeTiles = new();
     private readonly Dictionary<HotkeyAction, Button> _hotkeyBtns = new();
 
     public SettingsWindow()
     {
         InitializeComponent();
 
-        // Pencere ikonu ve logo: yüklenemezse pencere yine açılsın
         try
         {
             var logo = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/logo.png"));
             Icon = logo;
-            BrandHost.Children.Insert(0, new Image { Source = logo, Width = 30, Height = 30, Margin = new Thickness(0, 0, 10, 0) });
+            BrandHost.Children.Insert(0, new Image { Source = logo, Width = 34, Height = 34, Margin = new Thickness(0, 0, 12, 0) });
         }
         catch (Exception ex) { Log.Write("Ayarlar logosu yüklenemedi: " + ex.Message); }
 
@@ -55,6 +56,7 @@ public partial class SettingsWindow : Window
         Step("Gezinme", BuildNav);
         Step("Denetimler", InitControls);
         BuildPages();
+        Step("Alt bilgi", BuildFooter);
         Step("Yükleme", Load);
         Step("Sayfa", () => ShowPage("General"));
     }
@@ -65,14 +67,22 @@ public partial class SettingsWindow : Window
         catch (Exception ex) { Log.Write($"Ayarlar penceresi ({name}) hatası: {ex}"); }
     }
 
-    private void OnApplied() { RefreshTiles(); }
+    private void OnApplied()
+    {
+        RefreshTiles();
+        RefreshAccents();
+        bool was = _loading;
+        _loading = true;
+        if (_pinned != null) _pinned.IsChecked = App.Settings.Pinned;
+        _loading = was;
+    }
 
     private void ApplyTitleBar()
     {
         try
         {
             var h = new WindowInteropHelper(this).Handle;
-            Native.SetDarkTitleBar(h, App.Settings.Theme != "Light");
+            Native.SetDarkTitleBar(h, ThemeManager.IsDark(App.Settings.Theme));
         }
         catch { }
     }
@@ -104,60 +114,73 @@ public partial class SettingsWindow : Window
         return b;
     }
 
-    private Border SegRow(params RadioButton[] items)
+    /// <summary>Simge kutulu, üzerine gelince vurgulanan ayar satırı.</summary>
+    private Border Row(string title, string? desc, UIElement control, string glyph = "\uE713")
     {
-        var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var i in items) sp.Children.Add(i);
-        return SegHost(sp);
-    }
-
-    private Grid Row(string title, string? desc, UIElement control)
-    {
-        var g = new Grid { Margin = new Thickness(16, 12, 16, 12) };
+        var g = new Grid { Margin = new Thickness(12, 10, 14, 10) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition());
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new TextBlock
+        {
+            Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 15,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        Bind(icon, TextBlock.ForegroundProperty, "AccentBrush");
+        var chip = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(9), Margin = new Thickness(0, 0, 14, 0), Child = icon, VerticalAlignment = VerticalAlignment.Center };
+        Bind(chip, Border.BackgroundProperty, "SolidHoverBrush");
+        g.Children.Add(chip);
 
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
         left.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
         if (desc != null)
             left.Children.Add(new TextBlock { Text = desc, Style = Res("Hint"), Margin = new Thickness(0, 2, 0, 0) });
+        Grid.SetColumn(left, 1);
         g.Children.Add(left);
 
         var fe = (FrameworkElement)control;
         fe.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(fe, 1);
+        Grid.SetColumn(fe, 2);
         g.Children.Add(fe);
-        return g;
+
+        return new Border { Style = Res("RowHover"), CornerRadius = new CornerRadius(8), Child = g };
     }
 
     private Border Group(params UIElement[] rows)
     {
-        var sp = new StackPanel();
+        var sp = new StackPanel { Margin = new Thickness(4) };
         for (int i = 0; i < rows.Length; i++)
         {
             if (i > 0)
             {
-                var sep = new Border { Height = 1 };
+                var sep = new Border { Height = 1, Margin = new Thickness(60, 2, 12, 2) };
                 Bind(sep, Border.BackgroundProperty, "SolidBorderBrush");
                 sp.Children.Add(sep);
             }
             sp.Children.Add(rows[i]);
         }
-        var b = new Border { CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 18), Child = sp };
+        var b = new Border { CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 22), Child = sp };
         Bind(b, Border.BackgroundProperty, "SolidSurfaceBrush");
         Bind(b, Border.BorderBrushProperty, "SolidBorderBrush");
         return b;
     }
 
-    private TextBlock PageTitle(string t) => new() { Text = t, FontSize = 24, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 18) };
+    private StackPanel PageHeader(string title, string subtitle)
+    {
+        var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 24) };
+        sp.Children.Add(new TextBlock { Text = title, FontSize = 28, FontWeight = FontWeights.SemiBold });
+        sp.Children.Add(new TextBlock { Text = subtitle, Style = Res("Hint"), FontSize = 13, Margin = new Thickness(0, 4, 0, 0) });
+        return sp;
+    }
 
-    private TextBlock Section(string t) => new() { Text = t, FontWeight = FontWeights.SemiBold, FontSize = 12, Margin = new Thickness(4, 2, 0, 8), Opacity = 0.75 };
+    private TextBlock Section(string t) => new() { Text = t, FontWeight = FontWeights.SemiBold, FontSize = 11, Margin = new Thickness(6, 0, 0, 10), Opacity = 0.65 };
 
-    private TextBlock Note(string t) => new() { Text = t, Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 14) };
+    private TextBlock Note(string t) => new() { Text = t, Style = Res("Hint"), Margin = new Thickness(6, 0, 0, 20) };
 
     private ScrollViewer Page(params UIElement[] kids)
     {
-        var sp = new StackPanel { Margin = new Thickness(36, 30, 36, 24) };
+        var sp = new StackPanel { Margin = new Thickness(44, 34, 44, 28), MaxWidth = 780, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var k in kids) sp.Children.Add(k);
         return new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = sp };
     }
@@ -169,7 +192,7 @@ public partial class SettingsWindow : Window
         return s;
     }
 
-    private Button Btn(string text, RoutedEventHandler click, bool primary = false)
+    private Button Btn(string text, RoutedEventHandler click)
     {
         var b = new Button { Content = text, Style = Res("FluentButton"), HorizontalAlignment = HorizontalAlignment.Left };
         b.Click += click;
@@ -200,9 +223,21 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void BuildFooter()
+    {
+        var preview = Btn("Önizleme göster", (_, _) => App.Flyout.Preview());
+        preview.HorizontalAlignment = HorizontalAlignment.Stretch;
+        FooterHost.Children.Add(preview);
+        string ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
+        FooterHost.Children.Add(new TextBlock { Text = "Sürüm " + ver, Style = Res("Hint"), Margin = new Thickness(4, 10, 0, 0) });
+    }
+
     private void ShowPage(string key)
     {
-        if (_pages.TryGetValue(key, out var p)) PageHost.Content = p;
+        if (!_pages.TryGetValue(key, out var p)) return;
+        PageHost.Content = p;
+        p.Opacity = 0;
+        p.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
     }
 
     // ================= Sayfalar =================
@@ -210,14 +245,10 @@ public partial class SettingsWindow : Window
     // Tüm denetimler önce oluşturulur; bir sayfa bozulsa bile alanlar null kalmaz.
     private void InitControls()
     {
-        _enabled = Sw(); _autoStart = Sw(); _portable = Sw(OnPortable);
-        _pathText = new TextBlock { Style = Res("Hint"), TextAlignment = TextAlignment.Right, MaxWidth = 300, VerticalAlignment = VerticalAlignment.Center };
+        _enabled = Sw(); _autoStart = Sw(); _portable = Sw(OnPortable); _pinned = Sw(OnPinned);
+        _pathText = new TextBlock { Style = Res("Hint"), TextAlignment = TextAlignment.Right, MaxWidth = 280, VerticalAlignment = VerticalAlignment.Center };
 
         _track = Sw(); _play = Sw(); _fullscreen = Sw(); _paused = Sw();
-
-        _themeDark = Seg("Dark Glass", "theme", "Dark", OnChanged);
-        _themeLight = Seg("Light Glass", "theme", "Light", OnChanged);
-        _themeMid = Seg("Midnight", "theme", "Midnight", OnChanged);
 
         _accentPanel = new StackPanel { Orientation = Orientation.Horizontal };
         BuildAccents();
@@ -240,7 +271,7 @@ public partial class SettingsWindow : Window
             btn.Click += (_, _) => BeginCapture(action);
             _hotkeyBtns[action] = btn;
         }
-        _hotkeyStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 14) };
+        _hotkeyStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(6, 0, 0, 16) };
     }
 
     private void BuildPages()
@@ -271,71 +302,76 @@ public partial class SettingsWindow : Window
             try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{SettingsStore.Dir}\"") { UseShellExecute = true }); } catch { }
         });
         return Page(
-            PageTitle("Genel"),
+            PageHeader("Genel", "Uygulamanın temel davranışı."),
             Group(
-                Row("Flyout etkin", "Kapalıyken flyout hiçbir koşulda görünmez.", _enabled),
-                Row("Windows ile başlat", "Oturum açıldığında QuickMedia otomatik çalışsın.", _autoStart),
-                Row("Taşınabilir mod", "Ayarlar exe'nin yanındaki settings.json'da tutulur; klasörü USB belleğe kopyalayıp her yerde çalıştırabilirsiniz.", _portable)),
+                Row("Flyout etkin", "Kapalıyken flyout hiçbir koşulda görünmez.", _enabled, "\uE7E8"),
+                Row("Üstte sabitle", "Flyout kapanmaz, her zaman diğer pencerelerin üstünde kalır. Flyout'un köşesindeki iğne düğmesiyle de açılıp kapanır.", _pinned, "\uE718"),
+                Row("Windows ile başlat", "Oturum açıldığında QuickMedia otomatik çalışsın.", _autoStart, "\uE768"),
+                Row("Taşınabilir mod", "Ayarlar exe'nin yanındaki settings.json'da tutulur; klasörü USB belleğe kopyalayıp her yerde çalıştırabilirsiniz.", _portable, "\uE74E")),
             Section("AYAR DOSYASI"),
-            Group(Row("Konum", null, new StackPanel { Orientation = Orientation.Horizontal, Children = { _pathText, new Border { Width = 10 }, openFolder } })));
+            Group(Row("Konum", null, new StackPanel { Orientation = Orientation.Horizontal, Children = { _pathText, new Border { Width = 10 }, openFolder } }, "\uE838")));
     }
 
     private FrameworkElement PageAppearance()
     {
-        var tiles = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var tiles = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         foreach (var (id, name) in FlyoutStyles.All) tiles.Children.Add(MakeTile(id, name));
+
+        var themeTiles = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+        foreach (var t in ThemeManager.All) themeTiles.Children.Add(MakeThemeTile(t));
 
         var posGrid = new UniformGrid { Columns = 3 };
         foreach (var r in _posRadios) posGrid.Children.Add(r);
 
         return Page(
-            PageTitle("Stil ve görünüm"),
+            PageHeader("Stil ve görünüm", "Flyout'un şeklini, rengini ve yerini seçin."),
             Section("STİL"),
             tiles,
-            Note("Stile tıklayınca flyout önizlemesi açılır. Flyout üzerinde sağ tık sıradaki stile geçer; tray menüsünde de 'Stil' var. Island stili ekranın üst ortasında durur ve fareyle üstüne gelince genişler. Yuvarlak plak ve Kare kapak'ta kontroller fareyle üstüne gelince çıkar. Flyout'u istediğiniz yere sürükleyin; konum her stil için ayrı hatırlanır."),
+            Note("Stile tıklayınca önizleme açılır. Flyout üzerinde sağ tık sıradaki stile geçer; tray menüsünde de 'Stil' var. Plak, Kare kapak ve Island stillerinde kontroller fareyle üstüne gelince çıkar. Flyout'u istediğiniz yere sürükleyin; konum her stil için ayrı hatırlanır."),
             Section("TEMA"),
+            themeTiles,
+            Note("Her temanın kendi vurgu rengi vardır; aşağıdan istediğiniz rengi seçebilirsiniz."),
             Group(
-                Row("Tema", "Dark Glass: yarı saydam koyu yüzey, ince kenarlık, yumuşak gölge.", SegRow(_themeDark, _themeLight, _themeMid)),
-                Row("Vurgu rengi", "İlerleme çubuğu ve düğmeler. Varsayılan #8AB4F8", _accentPanel),
-                Row("Arka plan opaklığı", "Varsayılan %80 (#CC171B24).", new StackPanel { Orientation = Orientation.Horizontal, Children = { _opacity, _opacityText } }),
-                Row("Arka plan bulanıklığı", "Masaüstü duvar kâğıdını hafifçe bulanıklaştırır.", _blur)),
+                Row("Vurgu rengi", "'A' temanın kendi rengi. Varsayılan Dark Glass: #8AB4F8", _accentPanel, "\uE790"),
+                Row("Arka plan opaklığı", "Varsayılan %80 (#CC171B24).", new StackPanel { Orientation = Orientation.Horizontal, Children = { _opacity, _opacityText } }, "\uE706"),
+                Row("Arka plan bulanıklığı", "Masaüstü duvar kâğıdını hafifçe bulanıklaştırır.", _blur, "\uE7B3")),
             Section("BOYUT VE KONUM"),
             Group(
-                Row("Boyut", "Flyout üzerindeyken Ctrl + fare tekerleği ile de değişir.", new StackPanel { Orientation = Orientation.Horizontal, Children = { _scale, _scaleText } }),
-                Row("Konum", "Hazır bir konum seçin ya da flyout'u fareyle sürükleyin.", SegHost(posGrid))),
+                Row("Boyut", "Flyout üzerindeyken Ctrl + fare tekerleği ile de değişir.", new StackPanel { Orientation = Orientation.Horizontal, Children = { _scale, _scaleText } }, "\uE71E"),
+                Row("Konum", "Hazır bir konum seçin ya da flyout'u fareyle sürükleyin.", SegHost(posGrid), "\uE707")),
             Section("ÖĞELER"),
             Group(
-                Row("Albüm kapağı", null, _art),
-                Row("İlerleme çubuğu", null, _prog),
-                Row("Oynat / önceki / sonraki", null, _ctrl),
-                Row("Uygulama sesi", "Yalnızca çalan uygulamanın ses seviyesini ve sessize almasını yönetir (Windows ana sesine dokunmaz).", _vol),
-                Row("Platform etiketi", null, _badge),
-                Row("Açılış / kapanış animasyonu", null, _anim)),
-            Btn("Önizleme göster", (_, _) => App.Flyout.Preview()));
+                Row("Albüm kapağı", null, _art, "\uE91B"),
+                Row("İlerleme çubuğu", "Çubuğa tıklayıp sürükleyerek şarkıda istediğiniz yere atlayabilirsiniz.", _prog, "\uE713"),
+                Row("Oynat / önceki / sonraki", null, _ctrl, "\uE768"),
+                Row("Uygulama sesi", "Yalnızca çalan uygulamanın ses seviyesini ve sessize almasını yönetir (Windows ana sesine dokunmaz).", _vol, "\uE767"),
+                Row("Platform etiketi", null, _badge, "\uE8EC"),
+                Row("Açılış / kapanış animasyonu", null, _anim, "\uE713")));
     }
 
     private FrameworkElement PageVisibility() => Page(
-        PageTitle("Görünürlük"),
+        PageHeader("Görünürlük", "Flyout'un ne zaman açılıp kapanacağı."),
         Group(
-            Row("Parça değişince göster", "Yeni şarkı / video başladığında flyout açılır.", _track),
-            Row("Oynat / duraklat olunca göster", "Oynatma durumu değiştiğinde flyout açılır.", _play),
-            Row("Tam ekranda gizle", "Oyun, tam ekran video veya sunum sırasında otomatik gösterme yapılmaz. Kısayol yine çalışır.", _fullscreen),
-            Row("Duraklatılınca gizle", "'Hep göster' modundaki platformlarda medya duraklatılırsa flyout kapanır.", _paused)),
-        Note("Her platform için süre ve davranışı 'Platformlar' sayfasından ayarlayabilirsiniz."),
+            Row("Parça değişince göster", "Yeni şarkı / video başladığında flyout açılır.", _track, "\uE8D6"),
+            Row("Oynat / duraklat olunca göster", "Oynatma durumu değiştiğinde flyout açılır.", _play, "\uE768"),
+            Row("Tam ekranda gizle", "Oyun, tam ekran video veya sunum sırasında otomatik gösterme yapılmaz. Kısayol yine çalışır.", _fullscreen, "\uE740"),
+            Row("Duraklatılınca gizle", "'Hep göster' modundaki platformlarda medya duraklatılırsa flyout kapanır.", _paused, "\uE769")),
+        Note("Her platform için süre ve davranışı 'Platformlar' sayfasından ayarlayabilirsiniz. 'Gizle' seçtiğiniz kaynaklar flyout'ta hiçbir şekilde görünmez."),
         Btn("Önizleme göster", (_, _) => App.Flyout.Preview()));
 
     private FrameworkElement PagePlatforms()
     {
         BuildPlatforms();
         return Page(
-            PageTitle("Platformlar"),
-            Note("Hep göster: medya varken sürekli açık kalır. Süreli: tetiklenince seçilen saniye kadar görünür. Gizle: bu platformda otomatik açılmaz. Listede olmayan kaynaklar 'Diğer' kuralını kullanır."),
+            PageHeader("Platformlar", "Her kaynak için ayrı davranış."),
+            Note("Hep göster: medya varken sürekli açık kalır. Süreli: tetiklenince seçilen saniye kadar görünür. Gizle: bu kaynak flyout'ta hiç görünmez, bilgisi bile gösterilmez. Listede olmayan kaynaklar 'Diğer' kuralını kullanır."),
             _platformHost,
             Btn("Tümünü varsayılana döndür", (_, _) =>
             {
                 App.Settings.ResetRules();
                 SettingsStore.Save(App.Settings);
                 BuildPlatforms();
+                App.ApplyAll();
             }));
     }
 
@@ -348,11 +384,11 @@ public partial class SettingsWindow : Window
             var reset = Btn("Sıfırla", (_, _) => ResetOneHotkey(action));
             reset.Margin = new Thickness(8, 0, 0, 0);
             string def = "Varsayılan: " + HotkeyService.Describe(AppSettings.DefaultHotkey(action));
-            hkRows.Add(Row(r.Title, def, new StackPanel { Orientation = Orientation.Horizontal, Children = { _hotkeyBtns[action], reset } }));
+            hkRows.Add(Row(r.Title, def, new StackPanel { Orientation = Orientation.Horizontal, Children = { _hotkeyBtns[action], reset } }, "\uE765"));
         }
         return Page(
-            PageTitle("Kısayollar"),
-            Note("Düğmeye tıklayıp yeni kombinasyona basın (en az bir Ctrl, Alt veya Win ile). Bu kısayollar herhangi bir uygulama açıkken çalışır."),
+            PageHeader("Kısayollar", "Herhangi bir uygulama açıkken çalışır."),
+            Note("Düğmeye tıklayıp yeni kombinasyona basın (en az bir Ctrl, Alt veya Win ile)."),
             Group(hkRows.ToArray()),
             _hotkeyStatus,
             Btn("Tümünü varsayılana döndür", (_, _) => ResetAllHotkeys()));
@@ -362,14 +398,13 @@ public partial class SettingsWindow : Window
     {
         string ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
         return Page(
-            PageTitle("Hakkında"),
+            PageHeader("Hakkında", "QuickMedia " + ver),
             Group(
-                Row("QuickMedia", "Sürüm " + ver, new Border()),
-                Row("Nasıl çalışır?", "Windows'un küresel medya kontrollerini dinler. Spotify, YouTube, Netflix, X, Instagram gibi kaynaklar tanınır; tanınmayanlar 'Diğer' kuralını kullanır. Web siteleri tarayıcı pencere başlığına bakılarak tahmin edilir.", new Border())),
+                Row("Nasıl çalışır?", "Windows'un küresel medya kontrollerini dinler. Spotify, YouTube, Netflix, X, Instagram gibi kaynaklar tanınır; tanınmayanlar 'Diğer' kuralını kullanır. Web siteleri adres ve tarayıcı pencere başlığına bakılarak tahmin edilir.", new Border(), "\uE946")),
             Group(Row("Günlük dosyası", "Bir sorun olursa buradaki log.txt'ye bakın.", Btn("Aç", (_, _) =>
             {
                 try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Log.Dir}\"") { UseShellExecute = true }); } catch { }
-            }))));
+            }), "\uE838")));
     }
 
     // ================= Stil kutucukları =================
@@ -432,11 +467,43 @@ public partial class SettingsWindow : Window
                 Shp(c, 16, 36, 50, 4, 2, ink, .5);
                 break;
             case "Orb":
-                Shp(c, 29, 2, 54, 54, 0, trk, .8, true);
-                Shp(c, 33, 6, 46, 46, 0, ink, .35, true);
-                Shp(c, 50, 23, 12, 12, 0, card, 1, true);
+                Shp(c, 34, 2, 44, 44, 0, trk, .8, true);
+                Shp(c, 37, 5, 38, 38, 0, ink, .35, true);
+                Shp(c, 50, 18, 12, 12, 0, card, 1, true);
                 Shp(c, 52, 0, 8, 8, 0, acc, 1, true);
-                Shp(c, 36, 58, 40, 8, 4, card);
+                Shp(c, 36, 52, 40, 8, 4, card);
+                break;
+            case "MiniOrb":
+                Shp(c, 42, 16, 28, 28, 0, trk, .8, true);
+                Shp(c, 44, 18, 24, 24, 0, ink, .35, true);
+                Shp(c, 52, 26, 8, 8, 0, card, 1, true);
+                Shp(c, 52, 14, 6, 6, 0, acc, 1, true);
+                break;
+            case "BigOrb":
+                Shp(c, 26, 0, 60, 60, 0, trk, .8, true);
+                Shp(c, 29, 3, 54, 54, 0, ink, .35, true);
+                Shp(c, 47, 21, 18, 18, 0, card, 1, true);
+                Shp(c, 52, -2, 8, 8, 0, acc, 1, true);
+                Shp(c, 34, 60, 44, 7, 3.5, card);
+                break;
+            case "Disc":
+                Shp(c, 6, 20, 100, 28, 14, card);
+                Shp(c, 12, 22, 24, 24, 0, trk, .8, true);
+                Shp(c, 14, 24, 20, 20, 0, ink, .35, true);
+                Shp(c, 21, 31, 6, 6, 0, card, 1, true);
+                Shp(c, 42, 28, 40, 4, 2, ink, .8); Shp(c, 42, 36, 26, 3, 1.5, ink, .45);
+                Shp(c, 90, 29, 10, 10, 0, acc, 1, true);
+                break;
+            case "Float":
+                Shp(c, 34, 3, 44, 44, 10, ink, .35);
+                Shp(c, 40, 41, 32, 2, 1, trk); Shp(c, 40, 41, 14, 2, 1, acc);
+                Shp(c, 36, 54, 40, 8, 4, card);
+                break;
+            case "Poster":
+                Shp(c, 12, 6, 88, 56, 8, ink, .3);
+                Shp(c, 12, 40, 88, 22, 8, card, .85);
+                Shp(c, 18, 46, 38, 4, 2, ink, .95); Shp(c, 18, 53, 24, 3, 1.5, ink, .55);
+                Shp(c, 84, 47, 10, 10, 0, acc, 1, true);
                 break;
             case "Island":
                 Shp(c, 20, 4, 72, 20, 10, card);
@@ -467,11 +534,58 @@ public partial class SettingsWindow : Window
         return wrap;
     }
 
+    private static Color C(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+
+    private static void Rect(Canvas c, double x, double y, double w, double h, double r, string color, double op = 1, bool ellipse = false)
+    {
+        Shape s = ellipse ? new Ellipse() : new Rectangle { RadiusX = r, RadiusY = r };
+        s.Width = w; s.Height = h; s.Opacity = op; s.Fill = new SolidColorBrush(C(color));
+        Canvas.SetLeft(s, x); Canvas.SetTop(s, y);
+        c.Children.Add(s);
+    }
+
+    /// <summary>Temanın kendi renkleriyle çizilmiş küçük önizleme kutucuğu.</summary>
+    private FrameworkElement MakeThemeTile(ThemeDef t)
+    {
+        var canvas = new Canvas { Width = 110, Height = 62 };
+        Rect(canvas, 6, 8, 98, 40, 8, t.SSurface);
+        Rect(canvas, 12, 14, 22, 22, 5, t.Accent, .35);
+        Rect(canvas, 42, 16, 44, 5, 2.5, t.Text, .9);
+        Rect(canvas, 42, 26, 28, 4, 2, t.Text2);
+        Rect(canvas, 12, 41, 86, 3, 1.5, t.SBorder);
+        Rect(canvas, 12, 41, 38, 3, 1.5, t.Accent);
+        Rect(canvas, 92, 54, 8, 8, 0, t.Accent, 1, true);
+
+        var box = new Border
+        {
+            Width = 118, Height = 70, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(2),
+            Background = new SolidColorBrush(C(t.SBg)), Child = canvas,
+        };
+        var label = new TextBlock { Text = t.Name, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        var wrap = new StackPanel { Margin = new Thickness(0, 0, 12, 12), Cursor = Cursors.Hand, Background = Brushes.Transparent };
+        wrap.Children.Add(box);
+        wrap.Children.Add(label);
+        wrap.MouseLeftButtonUp += (_, _) =>
+        {
+            App.Settings.Theme = t.Id;
+            SettingsStore.Save(App.Settings);
+            App.ApplyAll();
+            ApplyTitleBar();
+        };
+
+        _themeTiles.Add((t.Id, box));
+        return wrap;
+    }
+
     private void RefreshTiles()
     {
         string cur = FlyoutStyles.Normalize(App.Settings.FlyoutStyle);
         foreach (var (id, tile) in _tiles)
             Bind(tile, Border.BorderBrushProperty, id == cur ? "AccentBrush" : "SolidBorderBrush");
+
+        string th = ThemeManager.Get(App.Settings.Theme).Id;
+        foreach (var (id, tile) in _themeTiles)
+            Bind(tile, Border.BorderBrushProperty, id == th ? "AccentBrush" : "SolidBorderBrush");
     }
 
     // ================= Yükle / topla =================
@@ -482,6 +596,7 @@ public partial class SettingsWindow : Window
         var s = App.Settings;
 
         _enabled.IsChecked = s.Enabled;
+        _pinned.IsChecked = s.Pinned;
         _autoStart.IsChecked = s.StartWithWindows;
         _portable.IsChecked = SettingsStore.IsPortable;
         _pathText.Text = SettingsStore.FilePath;
@@ -491,9 +606,6 @@ public partial class SettingsWindow : Window
         _fullscreen.IsChecked = s.HideInFullscreen;
         _paused.IsChecked = s.AlwaysHideWhenPaused;
 
-        _themeDark.IsChecked = s.Theme != "Light" && s.Theme != "Midnight";
-        _themeLight.IsChecked = s.Theme == "Light";
-        _themeMid.IsChecked = s.Theme == "Midnight";
         _opacity.Value = Math.Round(s.BackgroundOpacity * 100);
         _blur.IsChecked = s.BlurEnabled;
         _scale.Value = Math.Round(s.Scale * 100);
@@ -530,7 +642,6 @@ public partial class SettingsWindow : Window
         s.HideInFullscreen = _fullscreen.IsChecked == true;
         s.AlwaysHideWhenPaused = _paused.IsChecked == true;
 
-        s.Theme = _themeLight.IsChecked == true ? "Light" : _themeMid.IsChecked == true ? "Midnight" : "Dark";
         s.BackgroundOpacity = _opacity.Value / 100.0;
         s.BlurEnabled = _blur.IsChecked == true;
         s.Scale = Math.Round(_scale.Value) / 100.0;
@@ -555,6 +666,12 @@ public partial class SettingsWindow : Window
 
     private void OnChanged(object sender, RoutedEventArgs e) { if (!_loading) Collect(); }
     private void OnSlider(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!_loading) Collect(); }
+
+    private void OnPinned(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        App.Flyout.SetPinned(_pinned.IsChecked == true);
+    }
 
     private void OnPosition(object sender, RoutedEventArgs e)
     {
@@ -582,12 +699,28 @@ public partial class SettingsWindow : Window
 
     private void BuildAccents()
     {
+        // İlk daire: temanın kendi vurgu rengi ("A")
+        var auto = new Border
+        {
+            Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Margin = new Thickness(8, 0, 0, 0),
+            BorderThickness = new Thickness(2), Cursor = Cursors.Hand, Tag = "",
+            Child = new TextBlock { Text = "A", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            ToolTip = "Temanın kendi rengi",
+        };
+        auto.MouseLeftButtonUp += (_, _) =>
+        {
+            App.Settings.AccentColor = "";
+            RefreshAccents();
+            Collect();
+        };
+        _accentPanel.Children.Add(auto);
+
         foreach (var hex in Accents)
         {
             var b = new Border
             {
-                Width = 24, Height = 24, CornerRadius = new CornerRadius(12), Margin = new Thickness(8, 0, 0, 0),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)),
+                Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Margin = new Thickness(8, 0, 0, 0),
+                Background = new SolidColorBrush(C(hex)),
                 BorderThickness = new Thickness(2), Cursor = Cursors.Hand, Tag = hex,
             };
             b.MouseLeftButtonUp += (_, _) =>
@@ -602,9 +735,14 @@ public partial class SettingsWindow : Window
 
     private void RefreshAccents()
     {
+        string cur = App.Settings.AccentColor ?? "";
+        bool isAuto = string.IsNullOrWhiteSpace(cur) || cur.Equals("#8AB4F8", StringComparison.OrdinalIgnoreCase);
+
         foreach (Border b in _accentPanel.Children)
         {
-            bool sel = string.Equals((string)b.Tag, App.Settings.AccentColor, StringComparison.OrdinalIgnoreCase);
+            string tag = (string)b.Tag;
+            bool sel = tag.Length == 0 ? isAuto : string.Equals(tag, cur, StringComparison.OrdinalIgnoreCase);
+            if (tag.Length == 0) b.Background = new SolidColorBrush(C(ThemeManager.Get(App.Settings.Theme).Accent));
             if (sel) b.SetResourceReference(Border.BorderBrushProperty, "TextBrush");
             else b.BorderBrush = Brushes.Transparent;
         }
@@ -636,7 +774,13 @@ public partial class SettingsWindow : Window
             void AddRadio(string text, VisibilityMode mode)
             {
                 var rb = new RadioButton { Content = text, GroupName = "rule_" + p.Id, Style = Res("Seg"), IsChecked = rule.Mode == mode };
-                rb.Click += (_, _) => { rule.Mode = mode; Refresh(); SettingsStore.Save(App.Settings); };
+                rb.Click += (_, _) =>
+                {
+                    rule.Mode = mode;
+                    Refresh();
+                    SettingsStore.Save(App.Settings);
+                    App.ApplyAll();          // gizlenen kaynak hemen flyout'tan kalksın
+                };
                 seg.Children.Add(rb);
             }
             AddRadio("Hep göster", VisibilityMode.Always);
@@ -656,7 +800,8 @@ public partial class SettingsWindow : Window
             Refresh();
 
             var ctrl = new StackPanel { Orientation = Orientation.Horizontal, Children = { SegHost(seg), stepper } };
-            rows.Add(Row(p.Name, p.Kind, ctrl));
+            string glyph = p.Id switch { "spotify" or "ytmusic" or "applemusic" or "soundcloud" or "deezer" => "\uE8D6", "lol" or "steam" => "\uE7FC", _ => "\uE714" };
+            rows.Add(Row(p.Name, p.Kind, ctrl, glyph));
         }
         _platformHost.Children.Add(Group(rows.ToArray()));
     }

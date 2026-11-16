@@ -87,7 +87,7 @@ public sealed class MediaService
                 Album = props.AlbumTitle ?? "",
                 AppId = appId,
                 IsPlaying = playing,
-                PlatformId = sameTrack ? prev.PlatformId : Platforms.Detect(appId, title),
+                PlatformId = sameTrack && prev.PlatformId != "other" ? prev.PlatformId : Platforms.Detect(appId, title, artist, props.AlbumTitle ?? ""),
                 Art = sameTrack ? prev.Art : null,
             };
 

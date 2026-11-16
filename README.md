@@ -20,10 +20,11 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 
 ## Özellikler
 - Tray ikonu: sağ tık > Göster/Gizle, Ayarlar, Çıkış; çift tık > Ayarlar
-- 9 flyout stili: Klasik, Kompakt şerit, Minimal hap, Büyük kapak, Island, Geniş şerit, Kare kapak, Sadece yazı ve
-  Yuvarlak plak (dönen yuvarlak kapak + ilerleme halkası, istediğin yere sürüklenir; konum stil başına hatırlanır)
+- 14 flyout stili: Klasik, Kompakt şerit, Minimal hap, Büyük kapak, Island, Geniş şerit, Kare kapak, Sadece yazı,
+  Yuvarlak plak, Mini plak, Büyük plak, Plak şerit (dönen kapak + ilerleme halkası), Kare yüzer ve Poster.
+  Hepsi sürüklenebilir; konum stil başına hatırlanır
   Geçiş: Ayarlar > Stil ve görünüm, tray menüsü > Stil veya flyout üzerinde sağ tık (sıradaki stil)
-- Temalar: Dark Glass, Light Glass, Midnight; renkler `ThemeManager.cs` içinde
+- 9 tema: Dark Glass, Light Glass, Midnight, Ocean, Forest, Rose, Mocha, Violet, Paper (her birinin kendi vurgu rengi var, istenirse değiştirilir); renkler `ThemeManager.cs` içinde
 - Küresel kısayollar (Ayarlar > Kısayollar'dan değiştirilir, her biri için "Sıfırla" var):
   Alt+P göster/gizle · Ctrl+Alt+Boşluk oynat/duraklat · Ctrl+Alt+→ sonraki · Ctrl+Alt+← önceki ·
   Ctrl+Alt+↑/↓ çalan uygulamanın sesi · Ctrl+Alt+S ayarları aç/kapat.
@@ -36,6 +37,9 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Platform bazlı kurallar: Spotify, YouTube, YouTube Music, Apple Music, Netflix, Prime Video, Disney+, Twitch,
   X, Facebook, Instagram, TikTok, SoundCloud, Deezer, VLC, Medya Oynatıcı ve "Diğer"
   (her biri: Hep göster / Süreli (saniye) / Gizle)
+
+- Üstte sabitle: flyout köşesindeki küçük iğne düğmesi (üstüne gelince görünür), tray menüsü veya Ayarlar > Genel
+- "Gizle" seçilen kaynaklar flyout'ta hiçbir şekilde (bilgisi bile) görünmez
 
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde

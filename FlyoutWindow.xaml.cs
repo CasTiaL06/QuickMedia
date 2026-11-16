@@ -13,14 +13,21 @@ namespace QuickMedia;
 
 public partial class FlyoutWindow : Window
 {
+    private static readonly string[] HoverStyles = ["Island", "Orb", "Tile", "MiniOrb", "BigOrb", "Float"];
+
     private IntPtr _hwnd;
     private bool _shown;
     private bool _ready;
     private bool _updatingVol;
-    private bool _expanded;          // Island / Kare kapak / Yuvarlak plak: fare üstündeyken kontroller açılır
+    private bool _expanded;          // fare üstündeyken kontroller açılır (Island, plaklar, kare stiller)
     private bool _showArtist = true;
     private bool _showBadge;
-    private bool _chromeless;        // kart çerçevesi yok (Sadece yazı, Yuvarlak plak)
+    private bool _showTime = true;
+    private bool _orbSub;
+    private bool _miniTip;
+    private bool _chromeless;        // kart çerçevesi yok
+    private bool _ringStyle;         // plak stilleri: dönen kapak + ilerleme halkası
+    private double _ringSize = 144;
     private bool _spinning;
     private bool _seeking;
     private DateTime _seekHold = DateTime.MinValue;
@@ -28,7 +35,7 @@ public partial class FlyoutWindow : Window
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(500) };
 
     private readonly DropShadowEffect _cardShadow = new() { BlurRadius = 22, ShadowDepth = 3, Direction = 270, Opacity = 0.3, Color = Colors.Black };
-    private readonly DropShadowEffect _orbShadow = new() { BlurRadius = 20, ShadowDepth = 4, Direction = 270, Opacity = 0.45, Color = Colors.Black };
+    private readonly DropShadowEffect _artShadow = new() { BlurRadius = 20, ShadowDepth = 4, Direction = 270, Opacity = 0.45, Color = Colors.Black };
 
     public bool IsShown => _shown;
 
@@ -37,7 +44,11 @@ public partial class FlyoutWindow : Window
         InitializeComponent();
         _ready = true;
 
-        _tick.Tick += (_, _) => RefreshLive();
+        _tick.Tick += (_, _) =>
+        {
+            RefreshLive();
+            if (App.Settings.Pinned) Native.KeepOnTop(_hwnd);   // sabitliyken diğer üstteki pencerelerin de önünde kal
+        };
 
         SourceInitialized += (_, _) =>
         {
@@ -52,20 +63,37 @@ public partial class FlyoutWindow : Window
         Card.MouseRightButtonUp += (_, e) => { App.CycleStyle(); e.Handled = true; }; // sağ tık: sıradaki stil
         Card.MouseEnter += (_, _) => SetExpanded(true);
         Card.MouseLeave += (_, _) => SetExpanded(false);
+        Root.MouseEnter += (_, _) => UpdatePin();
+        Root.MouseLeave += (_, _) => UpdatePin();
 
         SeekArea.MouseLeftButtonDown += SeekArea_Down;
         SeekArea.MouseMove += SeekArea_Move;
         SeekArea.MouseLeftButtonUp += SeekArea_Up;
 
         ApplyLayout();
+        UpdatePin();
     }
+
+    // ================= Sabitleme düğmesi =================
+
+    public void UpdatePin()
+    {
+        bool pinned = App.Settings.Pinned;
+        bool vis = pinned || Root.IsMouseOver;
+        PinBtn.Opacity = vis ? 1 : 0;
+        PinBtn.IsHitTestVisible = vis;
+        PinBtn.Tag = pinned ? "Pinned" : null;
+        PinBtn.ToolTip = pinned ? "Sabitlemeyi kaldır" : "Üstte sabitle";
+    }
+
+    private void Pin_Click(object sender, RoutedEventArgs e) => App.Flyout.SetPinned(!App.Settings.Pinned);
 
     // ================= Yerleşim (stiller) =================
 
     private void SetExpanded(bool v)
     {
         string st = FlyoutStyles.Normalize(App.Settings.FlyoutStyle);
-        if (st is not ("Island" or "Orb" or "Tile") || _expanded == v) return;
+        if (Array.IndexOf(HoverStyles, st) < 0 || _expanded == v) return;
         _expanded = v;
         ApplyLayout();
     }
@@ -88,18 +116,25 @@ public partial class FlyoutWindow : Window
         Sz(PlayBtn, w, h, fs);
     }
 
+    private static void IconColor(Button b, bool white)
+    {
+        if (white) b.Foreground = Brushes.White; else b.ClearValue(Control.ForegroundProperty);
+    }
+
     private void ApplyLayout()
     {
         var s = App.Settings;
         string st = FlyoutStyles.Normalize(s.FlyoutStyle);
-        bool hover = _expanded && st is "Island" or "Orb" or "Tile";
+        bool hover = _expanded && Array.IndexOf(HoverStyles, st) >= 0;
         bool exp = st == "Island" && _expanded;
 
         Card.MinWidth = 0; Card.MaxWidth = double.PositiveInfinity; Card.MinHeight = 0;
         bool art = true, gear = false, progress = false, volume = false, controls = true, prev = true, next = true;
-        bool chrome = true, orb = false, scrim = false, label = false, text = false, info = true;
+        bool chrome = true, ring = false, shadowArt = false, scrim = false, label = false, text = false, info = true;
+        bool poster = false, whiteIcons = false, showTime = true, orbSub = false, miniTip = false;
         _showArtist = true; _showBadge = false;
-        double artW = 64, glyph = 26, titleSize = 15, artistSize = 13, trackH = 4, artRadius = 8, seekH = 16, scrimR = 0;
+        double artW = 64, artH = -1, glyph = 26, titleSize = 15, artistSize = 13, trackH = 4, artRadius = 8, seekH = 16, scrimR = 0;
+        double ringSize = 144, holeSize = 22, labelRadius = 11;
         var align = TextAlignment.Left;
         var badgeAlign = HorizontalAlignment.Left;
 
@@ -107,7 +142,7 @@ public partial class FlyoutWindow : Window
         {
             case "Compact":
                 Card.Width = 340; Card.CornerRadius = new CornerRadius(12); Card.Padding = new Thickness(10);
-                artW = 40; glyph = 18; titleSize = 13; artistSize = 12; trackH = 2; seekH = 10;
+                artW = 40; glyph = 18; titleSize = 13; artistSize = 12; trackH = 2; seekH = 10; showTime = false;
                 P(ArtBorder, 0, 0, 1, new Thickness(0, 0, 10, 0));
                 P(InfoPanel, 0, 1, 1, new Thickness(0));
                 P(ControlsPanel, 0, 2, 1, new Thickness(6, 0, 0, 0), HorizontalAlignment.Right);
@@ -174,7 +209,7 @@ public partial class FlyoutWindow : Window
 
             case "Wide":
                 Card.Width = 500; Card.CornerRadius = new CornerRadius(14); Card.Padding = new Thickness(12);
-                artW = 56; glyph = 22; titleSize = 15; artistSize = 12.5; trackH = 3; seekH = 12;
+                artW = 56; glyph = 22; titleSize = 15; artistSize = 12.5; trackH = 3; seekH = 12; showTime = false;
                 P(ArtBorder, 0, 0, 1, new Thickness(0, 0, 12, 0));
                 P(InfoPanel, 0, 1, 1, new Thickness(0));
                 P(ControlsPanel, 0, 2, 1, new Thickness(8, 0, 0, 0), HorizontalAlignment.Right);
@@ -187,7 +222,7 @@ public partial class FlyoutWindow : Window
 
             case "Tile":
                 Card.Width = 128; Card.CornerRadius = new CornerRadius(14); Card.Padding = new Thickness(8);
-                artW = 112; glyph = 40; artRadius = 10; titleSize = 12; artistSize = 11; trackH = 2; seekH = 10;
+                artW = 112; glyph = 40; artRadius = 10; titleSize = 12; artistSize = 11; trackH = 2; seekH = 10; showTime = false;
                 align = TextAlignment.Center; _showArtist = false;
                 P(ArtBorder, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
                 P(Scrim, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
@@ -197,7 +232,7 @@ public partial class FlyoutWindow : Window
                 P(VolumePanel, 3, 0, 4, new Thickness(0));
                 P(GearBtn, 0, 2, 1, new Thickness(0));
                 Sz(PrevBtn, 28, 28, 12); Sz(NextBtn, 28, 28, 12); PlayLook(true, 34, 34, 15);
-                controls = hover; scrim = hover; scrimR = 10; progress = true;
+                controls = hover; scrim = hover; scrimR = 10; progress = true; whiteIcons = true;
                 break;
 
             case "Text":
@@ -214,9 +249,14 @@ public partial class FlyoutWindow : Window
                 break;
 
             case "Orb":
-                chrome = false; orb = true;
+            case "MiniOrb":
+            case "BigOrb":
+                chrome = false; ring = true; shadowArt = true; info = false; label = st != "MiniOrb";
                 Card.Width = double.NaN; Card.CornerRadius = new CornerRadius(0); Card.Padding = new Thickness(4);
-                artW = 120; glyph = 38; artRadius = 60;
+                if (st == "MiniOrb") { artW = 72; glyph = 24; ringSize = 92; holeSize = 12; miniTip = true; }
+                else if (st == "BigOrb") { artW = 180; glyph = 52; ringSize = 208; holeSize = 34; orbSub = true; labelRadius = 14; }
+                else { artW = 120; glyph = 38; ringSize = 144; holeSize = 22; }
+                artRadius = artW / 2;
                 P(OrbRing, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
                 P(ArtBorder, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
                 P(OrbHole, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
@@ -227,9 +267,58 @@ public partial class FlyoutWindow : Window
                 P(ProgressPanel, 2, 0, 4, new Thickness(0));
                 P(VolumePanel, 3, 0, 4, new Thickness(0));
                 P(GearBtn, 0, 2, 1, new Thickness(0));
-                Sz(PrevBtn, 28, 28, 12); Sz(NextBtn, 28, 28, 12); PlayLook(true, 34, 34, 15);
-                controls = hover; scrim = hover; scrimR = 60; label = true; info = false;
+                if (st == "MiniOrb") { Sz(PrevBtn, 22, 22, 10); Sz(NextBtn, 22, 22, 10); PlayLook(true, 28, 28, 12); }
+                else if (st == "BigOrb") { Sz(PrevBtn, 36, 36, 15); Sz(NextBtn, 36, 36, 15); PlayLook(true, 46, 46, 19); }
+                else { Sz(PrevBtn, 28, 28, 12); Sz(NextBtn, 28, 28, 12); PlayLook(true, 34, 34, 15); }
+                controls = hover; scrim = hover; scrimR = artW / 2; whiteIcons = true;
                 _showArtist = false;
+                break;
+
+            case "Disc":   // kapsül içinde dönen plak
+                Card.Width = double.NaN; Card.MinWidth = 290; Card.MaxWidth = 380;
+                Card.CornerRadius = new CornerRadius(40); Card.Padding = new Thickness(10, 10, 18, 10);
+                ring = true; artW = 56; glyph = 20; artRadius = 28; ringSize = 72; holeSize = 12; titleSize = 14; artistSize = 12;
+                P(OrbRing, 0, 0, 1, new Thickness(0), HorizontalAlignment.Center);
+                P(ArtBorder, 0, 0, 1, new Thickness(0), HorizontalAlignment.Center);
+                P(OrbHole, 0, 0, 1, new Thickness(0), HorizontalAlignment.Center);
+                P(InfoPanel, 0, 1, 1, new Thickness(10, 0, 12, 0));
+                P(ControlsPanel, 0, 2, 1, new Thickness(0), HorizontalAlignment.Right);
+                P(ProgressPanel, 1, 0, 4, new Thickness(0));
+                P(VolumePanel, 2, 0, 4, new Thickness(0));
+                P(GearBtn, 0, 2, 1, new Thickness(0));
+                Sz(PrevBtn, 28, 28, 12); Sz(NextBtn, 28, 28, 12); PlayLook(true, 36, 36, 15);
+                break;
+
+            case "Float":  // yüzen kare kapak
+                chrome = false; shadowArt = true; label = true;
+                Card.Width = double.NaN; Card.CornerRadius = new CornerRadius(0); Card.Padding = new Thickness(4);
+                artW = 132; glyph = 44; artRadius = 24; trackH = 3; seekH = 12; showTime = false; info = false;
+                P(ArtBorder, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
+                P(Scrim, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
+                P(ControlsPanel, 0, 0, 4, new Thickness(0), HorizontalAlignment.Center);
+                P(ProgressPanel, 0, 0, 4, new Thickness(14, 0, 14, 10), HorizontalAlignment.Stretch, VerticalAlignment.Bottom);
+                P(OrbLabel, 1, 0, 4, new Thickness(0, 8, 0, 0), HorizontalAlignment.Center);
+                P(InfoPanel, 2, 0, 4, new Thickness(0));
+                P(VolumePanel, 3, 0, 4, new Thickness(0));
+                P(GearBtn, 0, 2, 1, new Thickness(0));
+                Sz(PrevBtn, 30, 30, 13); Sz(NextBtn, 30, 30, 13); PlayLook(true, 38, 38, 16);
+                controls = hover; scrim = hover; scrimR = artRadius; progress = true; whiteIcons = true;
+                _showArtist = false;
+                break;
+
+            case "Poster": // kapak arka plan, yazılar üstünde
+                poster = true; whiteIcons = true; showTime = false;
+                Card.Width = 340; Card.CornerRadius = new CornerRadius(16); Card.Padding = new Thickness(0);
+                artW = 338; artH = 160; glyph = 56; artRadius = 15; titleSize = 16; artistSize = 12.5; trackH = 3; seekH = 12;
+                P(ArtBorder, 0, 0, 4, new Thickness(0), HorizontalAlignment.Stretch, VerticalAlignment.Top);
+                P(PosterFade, 0, 0, 4, new Thickness(0), HorizontalAlignment.Stretch, VerticalAlignment.Bottom);
+                P(InfoPanel, 0, 0, 4, new Thickness(16, 0, 150, 34), HorizontalAlignment.Stretch, VerticalAlignment.Bottom);
+                P(ControlsPanel, 0, 0, 4, new Thickness(0, 0, 10, 26), HorizontalAlignment.Right, VerticalAlignment.Bottom);
+                P(ProgressPanel, 0, 0, 4, new Thickness(16, 0, 16, 8), HorizontalAlignment.Stretch, VerticalAlignment.Bottom);
+                P(VolumePanel, 1, 0, 4, new Thickness(0));
+                P(GearBtn, 0, 2, 1, new Thickness(0));
+                Sz(PrevBtn, 32, 32, 13); Sz(NextBtn, 32, 32, 13); PlayLook(true, 38, 38, 16);
+                progress = true;
                 break;
 
             default: // Classic
@@ -244,6 +333,8 @@ public partial class FlyoutWindow : Window
                 gear = true; _showBadge = true; progress = true; volume = true;
                 break;
         }
+
+        _ringStyle = ring; _ringSize = ringSize; _showTime = showTime; _orbSub = orbSub; _miniTip = miniTip;
 
         // Kart çerçevesi
         _chromeless = !chrome;
@@ -261,20 +352,38 @@ public partial class FlyoutWindow : Window
             Card.BorderThickness = new Thickness(0);
             Card.Effect = null;
         }
-        ArtBorder.Effect = orb ? _orbShadow : null;
+        ArtBorder.Effect = shadowArt ? _artShadow : null;
         InfoPanel.Effect = text
-            ? new DropShadowEffect { BlurRadius = 8, ShadowDepth = 1, Opacity = 0.9, Color = s.Theme == "Light" ? Colors.White : Colors.Black }
+            ? new DropShadowEffect { BlurRadius = 8, ShadowDepth = 1, Opacity = 0.9, Color = ThemeManager.IsDark(s.Theme) ? Colors.Black : Colors.White }
             : null;
 
         // Öğe boyutları / yazı ölçüleri
-        ArtBorder.Width = artW; ArtBorder.Height = artW; ArtBorder.CornerRadius = new CornerRadius(artRadius);
+        ArtBorder.Width = artW; ArtBorder.Height = artH > 0 ? artH : artW; ArtBorder.CornerRadius = new CornerRadius(artRadius);
         ArtGlyph.FontSize = glyph;
         TitleText.FontSize = titleSize; ArtistText.FontSize = artistSize;
         TitleText.TextAlignment = align; ArtistText.TextAlignment = align;
         BadgeBorder.HorizontalAlignment = badgeAlign;
         TrackGrid.Height = trackH;
         SeekArea.Height = seekH;
-        Scrim.Width = artW; Scrim.Height = artW; Scrim.CornerRadius = new CornerRadius(scrimR);
+        Scrim.Width = artW; Scrim.Height = artH > 0 ? artH : artW; Scrim.CornerRadius = new CornerRadius(scrimR);
+        OrbRing.Width = ringSize; OrbRing.Height = ringSize;
+        RingTrack.Width = ringSize - 4; RingTrack.Height = ringSize - 4;
+        OrbHole.Width = holeSize; OrbHole.Height = holeSize;
+        OrbLabel.CornerRadius = new CornerRadius(labelRadius);
+
+        // Poster: beyaz yazı / ikonlar
+        if (poster)
+        {
+            TitleText.Foreground = Brushes.White;
+            ArtistText.Foreground = new SolidColorBrush(Color.FromArgb(0xCC, 255, 255, 255));
+        }
+        else
+        {
+            TitleText.ClearValue(TextBlock.ForegroundProperty);
+            ArtistText.SetResourceReference(TextBlock.ForegroundProperty, "Text2Brush");
+        }
+        IconColor(PrevBtn, whiteIcons);
+        IconColor(NextBtn, whiteIcons);
 
         // Ayarlardaki öğe anahtarlarıyla birleştir
         V(InfoPanel, info);
@@ -285,13 +394,16 @@ public partial class FlyoutWindow : Window
         V(ControlsPanel, controls && s.ShowControls);
         V(PrevBtn, prev);
         V(NextBtn, next);
-        V(OrbRing, orb && s.ShowProgress);
-        V(OrbHole, orb && s.ShowAlbumArt);
+        V(OrbRing, ring && s.ShowProgress);
+        V(OrbHole, ring && s.ShowAlbumArt);
         V(Scrim, scrim);
+        V(PosterFade, poster && s.ShowAlbumArt);
         V(OrbLabel, label);
+        V(OrbSub, orbSub);
 
-        Update(App.Media?.Current ?? new MediaInfo());
+        Update(App.Displayed);
         UpdateSpin();
+        UpdatePin();
     }
 
     // ================= İçerik =================
@@ -300,11 +412,15 @@ public partial class FlyoutWindow : Window
     {
         var s = App.Settings;
         bool has = i.HasSession;
+        string artist = has ? (string.IsNullOrEmpty(i.Artist) ? i.Album : i.Artist) : "";
 
         TitleText.Text = has ? i.Title : "Medya oynatılmıyor";
-        ArtistText.Text = has ? (string.IsNullOrEmpty(i.Artist) ? i.Album : i.Artist) : "Bir şey oynatınca burada görünür";
+        ArtistText.Text = has ? artist : "Bir şey oynatınca burada görünür";
         OrbText.Text = has ? i.Title : "Medya yok";
+        OrbSub.Text = artist;
         V(ArtistText, _showArtist);
+        V(OrbSub, _orbSub && has && artist.Length > 0);
+        Card.ToolTip = _miniTip && has ? (artist.Length > 0 ? $"{i.Title} — {artist}" : i.Title) : null;
         BadgeText.Text = Platforms.Get(i.PlatformId).Name;
         V(BadgeBorder, _showBadge && has && s.ShowPlatformBadge);
         PlayBtn.Content = i.IsPlaying ? "\uE769" : "\uE768";
@@ -331,11 +447,10 @@ public partial class FlyoutWindow : Window
         if (_shown) { UpdateLayout(); Reposition(); UpdateBlur(); }
     }
 
-    /// <summary>Yuvarlak plak: müzik çalarken kapak yavaşça döner.</summary>
+    /// <summary>Plak stilleri: müzik çalarken kapak yavaşça döner.</summary>
     private void UpdateSpin()
     {
-        bool isOrb = FlyoutStyles.Normalize(App.Settings.FlyoutStyle) == "Orb";
-        bool spin = _shown && isOrb && App.Settings.Animations && (App.Media?.Current.IsPlaying ?? false);
+        bool spin = _shown && _ringStyle && App.Settings.Animations && App.Displayed.IsPlaying;
         if (spin == _spinning) return;
         _spinning = spin;
 
@@ -349,7 +464,7 @@ public partial class FlyoutWindow : Window
         {
             double a = ArtRot.Angle;
             ArtRot.BeginAnimation(RotateTransform.AngleProperty, null);
-            ArtRot.Angle = isOrb ? a % 360 : 0;
+            ArtRot.Angle = _ringStyle ? a % 360 : 0;
         }
     }
 
@@ -357,10 +472,12 @@ public partial class FlyoutWindow : Window
 
     private void RefreshLive()
     {
+        var cur = App.Displayed;   // "Gizle" seçilen kaynakların bilgisi hiçbir yerde kullanılmaz
+
         bool needTimeline = ProgressPanel.Visibility == Visibility.Visible || OrbRing.Visibility == Visibility.Visible;
         if (needTimeline)
         {
-            var tl = App.Media.GetTimeline();
+            var tl = cur.HasSession ? App.Media.GetTimeline() : null;
             _lastDur = tl?.Dur.TotalSeconds ?? 0;
             double ratio = tl is { } t && t.Dur.TotalSeconds > 0 ? t.Pos.TotalSeconds / t.Dur.TotalSeconds : 0;
             bool hold = _seeking || DateTime.Now < _seekHold;   // atlama sırasında çubuk geri zıplamasın
@@ -378,7 +495,7 @@ public partial class FlyoutWindow : Window
                     Fill.Width = 0;
                     PosText.Text = DurText.Text = "";
                 }
-                TimeRow.Visibility = TrackGrid.Height >= 3 && TrackGrid.Height != 2 ? Visibility.Visible : Visibility.Collapsed;
+                V(TimeRow, _showTime);
             }
             if (OrbRing.Visibility == Visibility.Visible) UpdateRing(ratio);
         }
@@ -386,7 +503,7 @@ public partial class FlyoutWindow : Window
         // Ses: Windows ana sesi DEĞİL, yalnızca çalan uygulamanın ses oturumu
         if (VolumePanel.Visibility == Visibility.Visible)
         {
-            var st = AppVolume.GetState(App.Media.Current.AppId);
+            var st = cur.HasSession ? AppVolume.GetState(cur.AppId) : null;
             bool ok = st != null;
             MuteBtn.IsEnabled = VolSlider.IsEnabled = ok;
             VolumePanel.Opacity = ok ? 1 : 0.4;
@@ -404,7 +521,7 @@ public partial class FlyoutWindow : Window
     {
         if (ratio <= 0.002) { RingFill.Data = null; return; }
         ratio = Math.Min(ratio, 0.9999);
-        const double c = 72, r = 68.5;
+        double c = _ringSize / 2, r = c - 3.5;
         double ang = ratio * 2 * Math.PI - Math.PI / 2;
         var fig = new PathFigure { StartPoint = new Point(c, c - r) };
         fig.Segments.Add(new ArcSegment(new Point(c + r * Math.Cos(ang), c + r * Math.Sin(ang)), new Size(r, r), 0, ratio > 0.5, SweepDirection.Clockwise, true));
@@ -432,7 +549,7 @@ public partial class FlyoutWindow : Window
     private void SeekArea_Down(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;                       // kartın sürükleme işleyicisine gitmesin
-        if (_lastDur <= 0) return;              // süre bilgisi yoksa atlanamaz
+        if (_lastDur <= 0) return;
         _seeking = true;
         SeekArea.CaptureMouse();
         PreviewSeek(SeekRatio(e));
@@ -472,6 +589,8 @@ public partial class FlyoutWindow : Window
         UpdateBlur();
         RefreshLive();
         UpdateSpin();
+        UpdatePin();
+        Native.KeepOnTop(_hwnd);
         _tick.Start();
         Animate(true);
     }
@@ -528,7 +647,6 @@ public partial class FlyoutWindow : Window
         else
         {
             const double m = 6;
-            // Island stili varsayılan olarak ekranın üst ortasında durur
             string p = s.FlyoutStyle == "Island" ? "TopCenter" : (s.Position ?? "BottomCenter");
             left = p.EndsWith("Left") ? wa.Left + m
                  : p.EndsWith("Right") ? wa.Right - w - m
@@ -590,17 +708,19 @@ public partial class FlyoutWindow : Window
 
     private void MuteBtn_Click(object sender, RoutedEventArgs e)
     {
-        string id = App.Media.Current.AppId;
-        var st = AppVolume.GetState(id);
-        if (st != null) AppVolume.SetMute(id, !st.Value.Muted);
+        var cur = App.Displayed;
+        if (!cur.HasSession) return;
+        var st = AppVolume.GetState(cur.AppId);
+        if (st != null) AppVolume.SetMute(cur.AppId, !st.Value.Muted);
         RefreshLive();
     }
 
     private void VolSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!_ready || _updatingVol) return;
-        string id = App.Media.Current.AppId;
-        if (e.NewValue > 0 && AppVolume.GetState(id)?.Muted == true) AppVolume.SetMute(id, false);
-        AppVolume.SetVolume(id, (float)(e.NewValue / 100.0));
+        var cur = App.Displayed;
+        if (!cur.HasSession) return;
+        if (e.NewValue > 0 && AppVolume.GetState(cur.AppId)?.Muted == true) AppVolume.SetMute(cur.AppId, false);
+        AppVolume.SetVolume(cur.AppId, (float)(e.NewValue / 100.0));
     }
 }

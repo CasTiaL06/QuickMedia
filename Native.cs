@@ -52,6 +52,14 @@ internal static class Native
         keybd_event(0xE8, 0, 2, UIntPtr.Zero);
     }
 
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>Pencereyi diğer "her zaman üstte" pencerelerin de önüne alır (odak çalmadan).</summary>
+    internal static void KeepOnTop(IntPtr hwnd)
+    {
+        if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOSIZE|NOMOVE|NOACTIVATE
+    }
+
     public static void SetDarkTitleBar(IntPtr hwnd, bool dark)
     {
         int v = dark ? 1 : 0;

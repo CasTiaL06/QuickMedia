@@ -107,6 +107,11 @@ public partial class App : Application
         else ShowSettings();
     }
 
+    /// <summary>Flyout'un göstereceği medya: "Gizle" seçilen kaynaklar için boş.</summary>
+    public static MediaInfo Displayed => Media == null ? new MediaInfo() : FlyoutController.Shown(Media.Current);
+
+    public static void RaiseApplied() => Applied?.Invoke();
+
     public static void ApplyAll()
     {
         ThemeManager.Apply(Settings);
