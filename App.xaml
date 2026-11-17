@@ -38,7 +38,10 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Bd" Background="Transparent" CornerRadius="8">
+            <Border x:Name="Bd" Background="Transparent" CornerRadius="8" RenderTransformOrigin="0.5,0.5">
+              <Border.RenderTransform>
+                <ScaleTransform x:Name="Sc" ScaleX="1" ScaleY="1"/>
+              </Border.RenderTransform>
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
@@ -47,6 +50,8 @@
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
+                <Setter TargetName="Sc" Property="ScaleX" Value="0.88"/>
+                <Setter TargetName="Sc" Property="ScaleY" Value="0.88"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -71,6 +76,7 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SolidHoverBrush}"/>
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Bd" Property="Opacity" Value="0.8"/>
@@ -212,7 +218,7 @@
                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SolidHoverBrush}"/>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SolidHoverBrush}"/>
+                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
                 <Setter TargetName="Ind" Property="Visibility" Value="Visible"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
               </Trigger>
@@ -231,7 +237,10 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Grid x:Name="G">
+            <Grid x:Name="G" RenderTransformOrigin="0.5,0.5">
+              <Grid.RenderTransform>
+                <ScaleTransform x:Name="Sc" ScaleX="1" ScaleY="1"/>
+              </Grid.RenderTransform>
               <Ellipse Fill="{DynamicResource AccentBrush}"/>
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
@@ -241,6 +250,8 @@
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="G" Property="Opacity" Value="0.7"/>
+                <Setter TargetName="Sc" Property="ScaleX" Value="0.9"/>
+                <Setter TargetName="Sc" Property="ScaleY" Value="0.9"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>

@@ -26,6 +26,18 @@
       </DockPanel>
     </Border>
 
-    <ContentControl x:Name="PageHost" Grid.Column="1"/>
+    <Grid Grid.Column="1" ClipToBounds="True">
+      <!-- Sol üst köşede çok hafif vurgu ışıltısı -->
+      <Ellipse x:Name="Glow" Width="620" Height="620" Margin="-220,-340,0,0"
+               HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
+        <Ellipse.Fill>
+          <RadialGradientBrush>
+            <GradientStop x:Name="GlowA" Color="#308AB4F8" Offset="0"/>
+            <GradientStop x:Name="GlowB" Color="#008AB4F8" Offset="1"/>
+          </RadialGradientBrush>
+        </Ellipse.Fill>
+      </Ellipse>
+      <ContentControl x:Name="PageHost"/>
+    </Grid>
   </Grid>
 </Window>

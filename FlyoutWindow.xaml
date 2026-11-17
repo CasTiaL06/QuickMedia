@@ -46,9 +46,12 @@
           <Border.RenderTransform>
             <RotateTransform x:Name="ArtRot"/>
           </Border.RenderTransform>
+          <Grid>
           <TextBlock x:Name="ArtGlyph" Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" FontSize="26"
                      Foreground="{DynamicResource Text2Brush}"
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <ContentControl x:Name="ArtIcon" HorizontalAlignment="Center" VerticalAlignment="Center" IsTabStop="False"/>
+          </Grid>
         </Border>
 
         <Ellipse x:Name="OrbHole" Width="22" Height="22" Visibility="Collapsed" IsHitTestVisible="False"
@@ -75,6 +78,11 @@
                   Background="{DynamicResource SurfaceBrush}"
                   BorderBrush="{DynamicResource BorderBrushC}" BorderThickness="1">
             <StackPanel Orientation="Horizontal">
+              <StackPanel x:Name="EqBars" Orientation="Horizontal" VerticalAlignment="Center" Height="10" Margin="0,0,6,0" Visibility="Collapsed">
+                <Rectangle Width="2" Height="10" RadiusX="1" RadiusY="1" Margin="0,0,1.5,0" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq1" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+                <Rectangle Width="2" Height="10" RadiusX="1" RadiusY="1" Margin="0,0,1.5,0" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq2" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+                <Rectangle Width="2" Height="10" RadiusX="1" RadiusY="1" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq3" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+              </StackPanel>
               <ContentControl x:Name="BadgeIcon" Width="14" Height="14" Margin="0,0,5,0" VerticalAlignment="Center" IsTabStop="False"/>
               <TextBlock x:Name="BadgeText" FontSize="11" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"/>
             </StackPanel>
@@ -102,6 +110,8 @@
               <Border CornerRadius="2" Background="{DynamicResource TrackBrush}"/>
               <Border x:Name="Fill" CornerRadius="2" HorizontalAlignment="Left" Width="0"
                       Background="{DynamicResource ProgressBrush}"/>
+              <Ellipse x:Name="SeekKnob" Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Opacity="0" Fill="{DynamicResource ProgressBrush}"/>
             </Grid>
           </Grid>
           <Grid x:Name="TimeRow">

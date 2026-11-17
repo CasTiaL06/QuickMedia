@@ -44,6 +44,11 @@ public partial class FlyoutWindow : Window
     public bool IsDemo => Demo != null && !App.Displayed.HasSession;
     private MediaInfo Cur => IsDemo ? Demo! : App.Displayed;
     private string _badgeIconId = "";
+    private string _artIconKey = "";
+    private string _lastTitle = "";
+    private ImageSource? _lastArt;
+    private double _artW = 64;
+    private bool _eqOn;
 
     public FlyoutWindow()
     {
@@ -72,6 +77,8 @@ public partial class FlyoutWindow : Window
         Root.MouseEnter += (_, _) => UpdatePin();
         Root.MouseLeave += (_, _) => UpdatePin();
 
+        SeekArea.MouseEnter += (_, _) => SeekKnob.Opacity = 1;
+        SeekArea.MouseLeave += (_, _) => { if (!_seeking) SeekKnob.Opacity = 0; };
         SeekArea.MouseLeftButtonDown += SeekArea_Down;
         SeekArea.MouseMove += SeekArea_Move;
         SeekArea.MouseLeftButtonUp += SeekArea_Up;
@@ -130,12 +137,60 @@ public partial class FlyoutWindow : Window
     {
         PlayBtn.Style = (Style)FindResource(round ? "PlayRound" : "IconButton");
         Sz(PlayBtn, w, h, fs);
+        PlayBtn.Effect = round
+            ? new DropShadowEffect { Color = ThemeManager.AccentOf(App.Settings), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.5 }
+            : null;
     }
 
     private static void IconColor(Button b, bool white)
     {
         if (white) b.Foreground = Brushes.White; else b.ClearValue(Control.ForegroundProperty);
     }
+
+    /// <summary>Cam kenarı: üstte belirgin, altta silik ince çerçeve.</summary>
+    private static Brush EdgeBrush()
+    {
+        var c = (Application.Current.Resources["BorderBrushC"] as SolidColorBrush)?.Color ?? Colors.Gray;
+        var bottom = Color.FromArgb((byte)(c.A * 0.35), c.R, c.G, c.B);
+        return new LinearGradientBrush(c, bottom, 90);
+    }
+
+    private static void FadeIn(UIElement e, int ms = 260, double from = 0)
+    {
+        if (!App.Settings.Animations) return;
+        e.BeginAnimation(OpacityProperty, new DoubleAnimation(from, 1, TimeSpan.FromMilliseconds(ms)));
+    }
+
+    /// <summary>Çalarken hareket eden küçük ses çubukları.</summary>
+    private void UpdateEq(bool playing)
+    {
+        EqBars.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
+        bool on = playing && _shown && App.Settings.Animations;
+        if (on == _eqOn) return;
+        _eqOn = on;
+
+        var tfs = new[] { Eq1, Eq2, Eq3 };
+        double[] secs = { 0.55, 0.8, 0.65 };
+        double[] from = { 0.25, 0.45, 0.3 };
+        for (int i = 0; i < tfs.Length; i++)
+        {
+            if (on)
+            {
+                var a = new DoubleAnimation(from[i], 1, TimeSpan.FromSeconds(secs[i]))
+                {
+                    AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase()
+                };
+                tfs[i].BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+            else
+            {
+                tfs[i].BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                tfs[i].ScaleY = 0.4;
+            }
+        }
+    }
+
+    private void SetKnob() => SeekKnob.Margin = new Thickness(Math.Max(0, Fill.Width - 5), 0, 0, 0);
 
     private void ApplyLayout()
     {
@@ -357,7 +412,7 @@ public partial class FlyoutWindow : Window
         if (chrome)
         {
             Card.SetResourceReference(Border.BackgroundProperty, "BgBrush");
-            Card.SetResourceReference(Border.BorderBrushProperty, "BorderBrushC");
+            Card.BorderBrush = EdgeBrush();
             Card.BorderThickness = new Thickness(1);
             Card.Effect = _cardShadow;
         }
@@ -374,6 +429,7 @@ public partial class FlyoutWindow : Window
             : null;
 
         // Öğe boyutları / yazı ölçüleri
+        _artW = artW;
         ArtBorder.Width = artW; ArtBorder.Height = artH > 0 ? artH : artW; ArtBorder.CornerRadius = new CornerRadius(artRadius);
         ArtGlyph.FontSize = glyph;
         TitleText.FontSize = titleSize; ArtistText.FontSize = artistSize;
@@ -431,7 +487,10 @@ public partial class FlyoutWindow : Window
         bool has = i.HasSession;
         string artist = has ? (string.IsNullOrEmpty(i.Artist) ? i.Album : i.Artist) : "";
 
-        TitleText.Text = has ? i.Title : L.T("Medya oynatılmıyor");
+        string newTitle = has ? i.Title : L.T("Medya oynatılmıyor");
+        bool titleChanged = _shown && has && newTitle != _lastTitle;
+        _lastTitle = newTitle;
+        TitleText.Text = newTitle;
         ArtistText.Text = has ? artist : L.T("Bir şey oynatınca burada görünür");
         OrbText.Text = has ? i.Title : L.T("Medya yok");
         OrbSub.Text = artist;
@@ -451,12 +510,29 @@ public partial class FlyoutWindow : Window
         {
             ArtBorder.Background = new ImageBrush(i.Art) { Stretch = Stretch.UniformToFill };
             ArtGlyph.Visibility = Visibility.Collapsed;
+            ArtIcon.Content = null; _artIconKey = "";
+            if (!ReferenceEquals(i.Art, _lastArt) && _shown) FadeIn(ArtBorder, 320, 0.25);
         }
         else
         {
             ArtBorder.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
-            ArtGlyph.Visibility = Visibility.Visible;
+            if (has && i.PlatformId != "other")
+            {
+                // Kapak yoksa platformun kendi simgesi
+                double sz = Math.Clamp(_artW * 0.52, 14, 64);
+                string key = $"{i.PlatformId}:{(int)sz}";
+                if (key != _artIconKey) { ArtIcon.Content = PlatformIcons.Create(i.PlatformId, sz); _artIconKey = key; }
+                ArtGlyph.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ArtIcon.Content = null; _artIconKey = "";
+                ArtGlyph.Visibility = Visibility.Visible;
+            }
         }
+        _lastArt = i.Art;
+        if (titleChanged) { FadeIn(TitleText); FadeIn(ArtistText, 320); FadeIn(OrbText); }
+        UpdateEq(i.IsPlaying);
         UpdateSpin();
         if (_shown) RefreshLive();
     }
@@ -510,6 +586,7 @@ public partial class FlyoutWindow : Window
                 if (tl is { } t2)
                 {
                     Fill.Width = Math.Max(0, TrackGrid.ActualWidth * ratio);
+                    SetKnob();
                     PosText.Text = Fmt(t2.Pos);
                     DurText.Text = Fmt(t2.Dur);
                 }
@@ -566,6 +643,7 @@ public partial class FlyoutWindow : Window
     private void PreviewSeek(double ratio)
     {
         Fill.Width = TrackGrid.ActualWidth * ratio;
+        SetKnob();
         if (_lastDur > 0) PosText.Text = Fmt(TimeSpan.FromSeconds(_lastDur * ratio));
     }
 
@@ -588,6 +666,7 @@ public partial class FlyoutWindow : Window
         if (!_seeking) return;
         _seeking = false;
         SeekArea.ReleaseMouseCapture();
+        if (!SeekArea.IsMouseOver) SeekKnob.Opacity = 0;
         double r = SeekRatio(e);
         PreviewSeek(r);
         App.Media.Seek(r);
@@ -613,6 +692,7 @@ public partial class FlyoutWindow : Window
         RefreshLive();
         UpdateSpin();
         UpdatePin();
+        UpdateEq(Cur.IsPlaying);
         Native.KeepOnTop(_hwnd);
         _tick.Start();
         Animate(true);
@@ -625,6 +705,7 @@ public partial class FlyoutWindow : Window
         _tick.Stop();
         Demo = null;
         UpdateSpin();
+        UpdateEq(false);
         Animate(false);
     }
 

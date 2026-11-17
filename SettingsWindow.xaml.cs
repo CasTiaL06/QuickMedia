@@ -56,7 +56,8 @@ public partial class SettingsWindow : Window
         BrandSub.Text = L.T("Medya flyout");
         SourceInitialized += (_, _) => ApplyTitleBar();
         App.Applied += OnApplied;
-        Closed += (_, _) => { App.Applied -= OnApplied; if (_capAction != null) EndCapture(); };
+        App.Media.Changed += OnMedia;
+        Closed += (_, _) => { App.Applied -= OnApplied; App.Media.Changed -= OnMedia; if (_capAction != null) EndCapture(); };
 
         Step("Gezinme", BuildNav);
         Step("Denetimler", InitControls);
@@ -81,6 +82,21 @@ public partial class SettingsWindow : Window
         if (_pinned != null) _pinned.IsChecked = App.Settings.Pinned;
         UpdatePinStatus();
         _loading = was;
+        UpdateGlow();
+        RefreshNowPlaying();
+    }
+
+    private void OnMedia(MediaInfo i, MediaEvent e) => Dispatcher.BeginInvoke(RefreshNowPlaying);
+
+    private void UpdateGlow()
+    {
+        try
+        {
+            var a = ThemeManager.AccentOf(App.Settings);
+            GlowA.Color = Color.FromArgb(0x30, a.R, a.G, a.B);
+            GlowB.Color = Color.FromArgb(0x00, a.R, a.G, a.B);
+        }
+        catch { }
     }
 
     private void ApplyTitleBar()
@@ -88,7 +104,9 @@ public partial class SettingsWindow : Window
         try
         {
             var h = new WindowInteropHelper(this).Handle;
-            Native.SetDarkTitleBar(h, ThemeManager.IsDark(App.Settings.Theme));
+            var th = ThemeManager.Get(App.Settings.Theme);
+            Native.SetDarkTitleBar(h, th.Dark);
+            Native.SetCaption(h, C(th.SBg), C(th.Text));
         }
         catch { }
     }
@@ -184,7 +202,15 @@ public partial class SettingsWindow : Window
         return sp;
     }
 
-    private TextBlock Section(string t) => new() { Text = L.T(t), FontWeight = FontWeights.SemiBold, FontSize = 11, Margin = new Thickness(6, 0, 0, 10), Opacity = 0.6 };
+    private StackPanel Section(string t)
+    {
+        var bar = new Border { Width = 3, Height = 12, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 8, 0) };
+        Bind(bar, Border.BackgroundProperty, "AccentBrush");
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 12) };
+        sp.Children.Add(bar);
+        sp.Children.Add(new TextBlock { Text = L.T(t), FontWeight = FontWeights.SemiBold, FontSize = 11, Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center });
+        return sp;
+    }
 
     private TextBlock Note(string t) => new() { Text = L.T(t), Style = Res("Hint"), Margin = new Thickness(6, 0, 0, 20) };
 
@@ -237,6 +263,7 @@ public partial class SettingsWindow : Window
 
     private void BuildFooter()
     {
+        BuildNowPlaying();
         _pinStatus = new TextBlock { Style = Res("Hint"), Margin = new Thickness(4, 0, 0, 10) };
         Bind(_pinStatus, TextBlock.ForegroundProperty, "AccentBrush");
         FooterHost.Children.Add(_pinStatus);
@@ -247,6 +274,63 @@ public partial class SettingsWindow : Window
         FooterHost.Children.Add(preview);
         string ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.1.0";
         FooterHost.Children.Add(new TextBlock { Text = L.F("Sürüm {0}", ver), Style = Res("Hint"), Margin = new Thickness(4, 10, 0, 0) });
+    }
+
+    private Border _npCard = null!, _npArt = null!;
+    private TextBlock _npTitle = null!, _npSub = null!, _npLabel = null!;
+
+    /// <summary>Sol alttaki canlı "şu an çalıyor" kartı.</summary>
+    private void BuildNowPlaying()
+    {
+        _npLabel = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold, Opacity = 0.65, Margin = new Thickness(0, 0, 0, 8) };
+        _npArt = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 10, 0) };
+        _npTitle = new TextBlock { FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 116 };
+        _npSub = new TextBlock { Style = Res("Hint"), TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, MaxWidth = 116 };
+        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        info.Children.Add(_npTitle);
+        info.Children.Add(_npSub);
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(_npArt);
+        row.Children.Add(info);
+        var inner = new StackPanel();
+        inner.Children.Add(_npLabel);
+        inner.Children.Add(row);
+        _npCard = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 12), Child = inner };
+        Bind(_npCard, Border.BackgroundProperty, "SolidBgBrush");
+        FooterHost.Children.Add(_npCard);
+        RefreshNowPlaying();
+    }
+
+    private void RefreshNowPlaying()
+    {
+        if (_npCard == null) return;
+        var m = App.Displayed;
+        _npLabel.Text = L.T("ŞU AN ÇALIYOR");
+        if (!m.HasSession)
+        {
+            _npTitle.Text = L.T("Şu an çalan bir şey yok");
+            _npTitle.FontWeight = FontWeights.Normal;
+            _npSub.Text = "";
+            _npArt.Child = null;
+            Bind(_npArt, Border.BackgroundProperty, "SolidHoverBrush");
+            return;
+        }
+        _npTitle.FontWeight = FontWeights.SemiBold;
+        _npTitle.Text = m.Title;
+        _npSub.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
+        if (m.Art != null)
+        {
+            _npArt.Child = null;
+            _npArt.Background = new ImageBrush(m.Art) { Stretch = Stretch.UniformToFill };
+        }
+        else
+        {
+            Bind(_npArt, Border.BackgroundProperty, "SolidHoverBrush");
+            var icon = PlatformIcons.Create(m.PlatformId, 24);
+            icon.HorizontalAlignment = HorizontalAlignment.Center;
+            icon.VerticalAlignment = VerticalAlignment.Center;
+            _npArt.Child = icon;
+        }
     }
 
     private void UpdatePinStatus()
@@ -260,7 +344,11 @@ public partial class SettingsWindow : Window
         _page = key;
         PageHost.Content = p;
         p.Opacity = 0;
-        p.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        var slide = new TranslateTransform(0, 14);
+        p.RenderTransform = slide;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        p.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
+        slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(14, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
     }
 
     // ================= Sayfalar =================
@@ -565,6 +653,7 @@ public partial class SettingsWindow : Window
         wrap.Children.Add(box);
         wrap.Children.Add(label);
         wrap.MouseLeftButtonUp += (_, _) => App.SetStyle(id);
+        Hoverize(wrap, box);
 
         _tiles.Add((id, box));
         return wrap;
@@ -601,6 +690,7 @@ public partial class SettingsWindow : Window
         var wrap = new StackPanel { Margin = new Thickness(0, 0, 12, 12), Cursor = Cursors.Hand, Background = Brushes.Transparent };
         wrap.Children.Add(box);
         wrap.Children.Add(label);
+        Hoverize(wrap, box);
         wrap.MouseLeftButtonUp += (_, _) =>
         {
             App.Settings.Theme = t.Id;
@@ -613,15 +703,41 @@ public partial class SettingsWindow : Window
         return wrap;
     }
 
+    private static void Hoverize(FrameworkElement hit, FrameworkElement target)
+    {
+        var sc = new ScaleTransform(1, 1);
+        target.RenderTransformOrigin = new Point(0.5, 0.5);
+        target.RenderTransform = sc;
+        void To(double v)
+        {
+            var a = new DoubleAnimation(v, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            sc.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+            sc.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+        }
+        hit.MouseEnter += (_, _) => To(1.05);
+        hit.MouseLeave += (_, _) => To(1.0);
+    }
+
+    private static System.Windows.Media.Effects.DropShadowEffect SelGlow() => new()
+    {
+        Color = ThemeManager.AccentOf(App.Settings), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.55,
+    };
+
     private void RefreshTiles()
     {
         string cur = FlyoutStyles.Normalize(App.Settings.FlyoutStyle);
         foreach (var (id, tile) in _tiles)
+        {
             Bind(tile, Border.BorderBrushProperty, id == cur ? "AccentBrush" : "SolidBorderBrush");
+            tile.Effect = id == cur ? SelGlow() : null;
+        }
 
         string th = ThemeManager.Get(App.Settings.Theme).Id;
         foreach (var (id, tile) in _themeTiles)
+        {
             Bind(tile, Border.BorderBrushProperty, id == th ? "AccentBrush" : "SolidBorderBrush");
+            tile.Effect = id == th ? SelGlow() : null;
+        }
     }
 
     // ================= Yükle / topla =================
@@ -662,6 +778,7 @@ public partial class SettingsWindow : Window
         RefreshTiles();
         UpdateHotkeyText();
         UpdateHotkeyStatus(null);
+        UpdateGlow();
         _loading = false;
     }
 

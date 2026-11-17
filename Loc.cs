@@ -38,6 +38,8 @@ public static class L
         ["Önizleme göster"] = "Show preview",
         ["Sürüm {0}"] = "Version {0}",
         ["Üstte sabit"] = "Pinned on top",
+        ["ŞU AN ÇALIYOR"] = "NOW PLAYING",
+        ["Şu an çalan bir şey yok"] = "Nothing is playing right now",
 
         // ---- Genel ----
         ["Uygulamanın temel davranışı."] = "Core behavior of the app.",

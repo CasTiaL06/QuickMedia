@@ -60,6 +60,7 @@ public static class ThemeManager
         Set("Text2Brush", C(t.Text2));
         Set("AccentBrush", accent);
         Set("ProgressBrush", accent);
+        Set("AccentSoftBrush", Color.FromArgb(0x26, accent.R, accent.G, accent.B));
         Set("OnAccentBrush", C(t.OnAccent));
         Set("HoverBrush", t.Dark ? C("#1AFFFFFF") : C("#14000000"));
         Set("TrackBrush", t.Dark ? C("#33FFFFFF") : C("#26000000"));

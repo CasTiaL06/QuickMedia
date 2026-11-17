@@ -60,6 +60,17 @@ internal static class Native
         if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOSIZE|NOMOVE|NOACTIVATE
     }
 
+    /// <summary>Windows 11: başlık çubuğunu pencere rengiyle bütünleştirir (Windows 10'da yok sayılır).</summary>
+    internal static void SetCaption(IntPtr hwnd, System.Windows.Media.Color bg, System.Windows.Media.Color text)
+    {
+        int cap = bg.R | (bg.G << 8) | (bg.B << 16);
+        int txt = text.R | (text.G << 8) | (text.B << 16);
+        int border = cap;
+        DwmSetWindowAttribute(hwnd, 35, ref cap, sizeof(int));    // DWMWA_CAPTION_COLOR
+        DwmSetWindowAttribute(hwnd, 36, ref txt, sizeof(int));    // DWMWA_TEXT_COLOR
+        DwmSetWindowAttribute(hwnd, 34, ref border, sizeof(int)); // DWMWA_BORDER_COLOR
+    }
+
     public static void SetDarkTitleBar(IntPtr hwnd, bool dark)
     {
         int v = dark ? 1 : 0;
