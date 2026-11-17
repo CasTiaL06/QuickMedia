@@ -45,6 +45,8 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Platform simgeleri koddan çizilmiş sade marka logolarıdır. Resmi logoları kullanmak için exe'nin yanına
   `Icons` klasörü açıp platform kimliğiyle PNG koyun (spotify.png, youtube.png, twitch.png, x → twitter.png ...);
   bunlar otomatik olarak öncelik alır
+- Tüm medya oturumları ayrı izlenir: ör. Spotify "Hep göster", YouTube "Gizle" ise, YouTube izlerken de flyout
+  Spotify'ı göstermeye devam eder; kısayollar (oynat/sonraki/önceki/ses) da gösterilen oturum üzerinde çalışır
 - Flyout yalnızca gösterilecek medya varken açılır; medya yokken ya da kaynak "Gizle" ise hiç görünmez
 
 ## Notlar

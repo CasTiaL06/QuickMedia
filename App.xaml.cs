@@ -115,6 +115,7 @@ public partial class App : Application
 
     public static void ApplyAll()
     {
+        Media?.Repick();      // Gizle / Hep göster kuralları değişmiş olabilir: gösterilecek oturumu yeniden seç
         ThemeManager.Apply(Settings);
         Flyout.ApplySettings();
         Applied?.Invoke();
