@@ -155,10 +155,10 @@ public partial class FlyoutWindow : Window
         return new LinearGradientBrush(c, bottom, 90);
     }
 
-    private static void FadeIn(UIElement e, int ms = 260, double from = 0)
+    private static void FadeIn(UIElement e, int ms = 260, double start = 0)
     {
         if (!App.Settings.Animations) return;
-        e.BeginAnimation(OpacityProperty, new DoubleAnimation(from, 1, TimeSpan.FromMilliseconds(ms)));
+        e.BeginAnimation(OpacityProperty, new DoubleAnimation(start, 1, TimeSpan.FromMilliseconds(ms)));
     }
 
     /// <summary>Çalarken hareket eden küçük ses çubukları.</summary>
@@ -171,12 +171,12 @@ public partial class FlyoutWindow : Window
 
         var tfs = new[] { Eq1, Eq2, Eq3 };
         double[] secs = { 0.55, 0.8, 0.65 };
-        double[] from = { 0.25, 0.45, 0.3 };
+        double[] lows = { 0.25, 0.45, 0.3 };
         for (int i = 0; i < tfs.Length; i++)
         {
             if (on)
             {
-                var a = new DoubleAnimation(from[i], 1, TimeSpan.FromSeconds(secs[i]))
+                var a = new DoubleAnimation(lows[i], 1, TimeSpan.FromSeconds(secs[i]))
                 {
                     AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase()
                 };
