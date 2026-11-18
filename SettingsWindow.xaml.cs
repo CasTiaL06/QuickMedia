@@ -30,7 +30,7 @@ public partial class SettingsWindow : Window
     private CheckBox _track = null!, _play = null!, _fullscreen = null!, _paused = null!;
     private CheckBox _blur = null!, _anim = null!, _art = null!, _prog = null!, _ctrl = null!, _vol = null!, _badge = null!;
     private Slider _opacity = null!, _scale = null!;
-    private CheckBox _tbOn = null!, _tbSuppress = null!;
+    private CheckBox _tbOn = null!, _tbSuppress = null!, _tbAuto = null!, _tbProgress = null!;
     private Slider _tbWidth = null!, _tbOffset = null!;
     private TextBlock _tbWidthText = null!, _tbOffsetText = null!;
     private TextBlock _opacityText = null!, _scaleText = null!, _pathText = null!, _hotkeyStatus = null!;
@@ -381,7 +381,7 @@ public partial class SettingsWindow : Window
         _blur = Sw(); _anim = Sw();
         _art = Sw(); _prog = Sw(); _ctrl = Sw(); _vol = Sw(); _badge = Sw();
 
-        _tbOn = Sw(); _tbSuppress = Sw();
+        _tbOn = Sw(); _tbSuppress = Sw(); _tbAuto = Sw(); _tbProgress = Sw();
         _tbWidth = Sld(160, 420); _tbWidthText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _tbOffset = Sld(0, 800); _tbOffsetText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
 
@@ -503,8 +503,10 @@ public partial class SettingsWindow : Window
         PageHeader("Görev çubuğu", "QuickMedia'yı görev çubuğunun boş sol kısmında kullanın."),
         Group(
             Row("Görev çubuğunda kullan", "Çalan şarkıyı görev çubuğunun sol tarafında küçük bir kontrol olarak gösterir. Tıklayınca flyout açılır, fare tekerleği çalan uygulamanın sesini değiştirir, sağ tık menü açar.", _tbOn, "\uE7C4"),
-            Row("Genişlik", "Görev çubuğundaki kontrolün genişliği.", new StackPanel { Orientation = Orientation.Horizontal, Children = { _tbWidth, _tbWidthText } }, "\uE71E"),
-            Row("Soldan boşluk", "Ortadaki simgelerin üstüne binmemesi için ayarlayın. Windows 11'de Widgets (hava durumu) düğmesi açıksa onun sağına denk gelecek şekilde artırın.", new StackPanel { Orientation = Orientation.Horizontal, Children = { _tbOffset, _tbOffsetText } }, "\uE707"),
+            Row("Boş alanı otomatik bul", "Görev çubuğundaki düğmelerin yerini okuyup kontrolü sol taraftaki boş alana kendisi sığdırır (Widgets düğmesi varsa onun sağına). Kapalıyken aşağıdaki 'Soldan boşluk' kullanılır.", _tbAuto, "\uE7C4"),
+            Row("İlerleme çizgisi", "Kontrolün altında şarkının ilerlemesini gösteren ince çizgi.", _tbProgress, "\uE713"),
+            Row("Genişlik", "Kontrolün en fazla genişliği (otomatik modda boş alana sığacak şekilde kısalır).", new StackPanel { Orientation = Orientation.Horizontal, Children = { _tbWidth, _tbWidthText } }, "\uE71E"),
+            Row("Soldan boşluk", "Yalnızca otomatik yerleştirme kapalıyken: ortadaki simgelerin üstüne binmemesi için ayarlayın. Windows 11'de Widgets (hava durumu) düğmesi açıksa onun sağına denk gelecek şekilde artırın.", new StackPanel { Orientation = Orientation.Horizontal, Children = { _tbOffset, _tbOffsetText } }, "\uE707"),
             Row("Otomatik açılan flyout'u kapat", "Görev çubuğu kontrolü açıkken flyout kendiliğinden açılmaz; yalnızca kontrole tıklayınca ya da kısayolla açılır.", _tbSuppress, "\uE7B3")),
         Note("Yalnızca alttaki veya üstteki görev çubuğunu destekler. Çalan bir şey yokken ya da tam ekran uygulamada otomatik gizlenir. Beğenmezseniz yukarıdaki anahtarı kapatmanız yeterli."));
 
@@ -799,6 +801,8 @@ public partial class SettingsWindow : Window
 
         _tbOn.IsChecked = s.UseTaskbar;
         _tbSuppress.IsChecked = s.TaskbarSuppressFlyout;
+        _tbAuto.IsChecked = s.TaskbarAuto;
+        _tbProgress.IsChecked = s.TaskbarProgress;
         _tbWidth.Value = s.TaskbarWidth;
         _tbOffset.Value = s.TaskbarOffset;
         _tbWidthText.Text = $"{_tbWidth.Value:0} px";
@@ -845,6 +849,8 @@ public partial class SettingsWindow : Window
 
         s.UseTaskbar = _tbOn.IsChecked == true;
         s.TaskbarSuppressFlyout = _tbSuppress.IsChecked == true;
+        s.TaskbarAuto = _tbAuto.IsChecked == true;
+        s.TaskbarProgress = _tbProgress.IsChecked == true;
         s.TaskbarWidth = (int)Math.Round(_tbWidth.Value);
         s.TaskbarOffset = (int)Math.Round(_tbOffset.Value);
         _tbWidthText.Text = $"{_tbWidth.Value:0} px";

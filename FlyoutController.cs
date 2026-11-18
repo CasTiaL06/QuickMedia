@@ -1,4 +1,5 @@
 using System;
+using System.Windows;
 using System.Windows.Threading;
 
 namespace QuickMedia;
@@ -95,7 +96,7 @@ public sealed class FlyoutController
     }
 
     /// <summary>Kısayol: görünüyorsa gizle, gizliyse aç (gösterilecek medya yoksa hiçbir şey yapmaz).</summary>
-    public void Toggle()
+    public void Toggle(Rect? anchor = null)
     {
         if (!App.Settings.Enabled) return;
         if (_win.IsShown)
@@ -109,6 +110,7 @@ public sealed class FlyoutController
         _manual = true;
         _suppressed = false;
         _win.Demo = null;
+        _win.AnchorDip = anchor;
         _win.Update(App.Displayed);
         Show(0);
     }

@@ -7,29 +7,77 @@
         Width="260" Height="40" UseLayoutRounding="True"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
 
-  <Border x:Name="Hit" CornerRadius="8" Background="Transparent" Padding="6,0,4,0">
-    <Grid>
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="Auto"/>
-      </Grid.ColumnDefinitions>
+  <Grid x:Name="Root">
+    <Grid.RenderTransform>
+      <TranslateTransform x:Name="Shift"/>
+    </Grid.RenderTransform>
 
-      <Border x:Name="Art" Width="28" Height="28" CornerRadius="6" Margin="0,0,9,0" VerticalAlignment="Center"
-              Background="#22808080">
-        <ContentControl x:Name="ArtIcon" HorizontalAlignment="Center" VerticalAlignment="Center" IsTabStop="False"/>
-      </Border>
+    <!-- üzerine gelince yumuşakça beliren zemin -->
+    <Border x:Name="HoverBg" CornerRadius="8" Opacity="0" IsHitTestVisible="False"/>
 
-      <StackPanel Grid.Column="1" VerticalAlignment="Center">
-        <TextBlock x:Name="TitleText" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-        <TextBlock x:Name="SubText" FontSize="11" TextTrimming="CharacterEllipsis"/>
-      </StackPanel>
+    <Border x:Name="Hit" CornerRadius="8" Background="Transparent" Padding="6,0,4,0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
 
-      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
-        <Button x:Name="PrevBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE892;" Click="Prev_Click"/>
-        <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Width="30" Height="26" FontSize="13" Content="&#xE768;" Click="Play_Click"/>
-        <Button x:Name="NextBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE893;" Click="Next_Click"/>
-      </StackPanel>
-    </Grid>
-  </Border>
+        <Border x:Name="Art" Width="28" Height="28" CornerRadius="6" Margin="0,0,9,0" VerticalAlignment="Center">
+          <ContentControl x:Name="ArtIcon" HorizontalAlignment="Center" VerticalAlignment="Center" IsTabStop="False"/>
+        </Border>
+
+        <!-- Başlık / sanatçı: sığmazsa kayar -->
+        <Grid x:Name="TextHost" Grid.Column="1" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+          <Grid.RenderTransform>
+            <TranslateTransform x:Name="TextShift"/>
+          </Grid.RenderTransform>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid x:Name="TitleClip" ClipToBounds="True">
+            <TextBlock x:Name="TitleText" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Left" TextWrapping="NoWrap">
+              <TextBlock.RenderTransform>
+                <TranslateTransform x:Name="TitleMove"/>
+              </TextBlock.RenderTransform>
+            </TextBlock>
+          </Grid>
+          <Grid x:Name="SubClip" Grid.Row="1" ClipToBounds="True">
+            <TextBlock x:Name="SubText" FontSize="11" HorizontalAlignment="Left" TextWrapping="NoWrap">
+              <TextBlock.RenderTransform>
+                <TranslateTransform x:Name="SubMove"/>
+              </TextBlock.RenderTransform>
+            </TextBlock>
+          </Grid>
+        </Grid>
+
+        <!-- Sağ: normalde ses çubukları, üzerine gelince kontroller -->
+        <Grid x:Name="RightHost" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="88">
+          <StackPanel x:Name="EqBars" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Height="12" Margin="0,0,10,0">
+            <Rectangle Width="3" Height="12" RadiusX="1.5" RadiusY="1.5" Margin="0,0,2,0" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq1" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+            <Rectangle Width="3" Height="12" RadiusX="1.5" RadiusY="1.5" Margin="0,0,2,0" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq2" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+            <Rectangle Width="3" Height="12" RadiusX="1.5" RadiusY="1.5" Margin="0,0,2,0" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq3" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+            <Rectangle Width="3" Height="12" RadiusX="1.5" RadiusY="1.5" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,1" Fill="{DynamicResource AccentBrush}"><Rectangle.RenderTransform><ScaleTransform x:Name="Eq4" ScaleY="0.4"/></Rectangle.RenderTransform></Rectangle>
+          </StackPanel>
+          <TextBlock x:Name="PausedGlyph" Text="&#xE769;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                     HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Opacity="0.6" Visibility="Collapsed"/>
+
+          <StackPanel x:Name="CtlPanel" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0" IsHitTestVisible="False">
+            <StackPanel.RenderTransform>
+              <TranslateTransform x:Name="CtlShift" X="10"/>
+            </StackPanel.RenderTransform>
+            <Button x:Name="PrevBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE892;" Click="Prev_Click"/>
+            <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Width="30" Height="26" FontSize="13" Content="&#xE768;" Click="Play_Click"/>
+            <Button x:Name="NextBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE893;" Click="Next_Click"/>
+          </StackPanel>
+        </Grid>
+
+        <!-- Alt kenarda ince ilerleme çizgisi -->
+        <Border x:Name="ProgressTrack" Grid.ColumnSpan="3" Height="2" VerticalAlignment="Bottom" Margin="4,0,4,2" CornerRadius="1">
+          <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" CornerRadius="1" Background="{DynamicResource AccentBrush}"/>
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
 </Window>

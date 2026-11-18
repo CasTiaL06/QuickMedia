@@ -44,6 +44,9 @@ public partial class FlyoutWindow : Window
     public bool IsDemo => Demo != null && !App.Displayed.HasSession;
     private MediaInfo Cur => IsDemo ? Demo! : App.Displayed;
     private string _badgeIconId = "";
+
+    /// <summary>Görev çubuğu kontrolünden açıldıysa onun (DIP) dikdörtgeni: flyout oradan yukarı / aşağı açılır.</summary>
+    public Rect? AnchorDip { get; set; }
     private string _artIconKey = "";
     private string _lastTitle = "";
     private ImageSource? _lastArt;
@@ -704,6 +707,7 @@ public partial class FlyoutWindow : Window
         _shown = false;
         _tick.Stop();
         Demo = null;
+        AnchorDip = null;
         UpdateSpin();
         UpdateEq(false);
         Animate(false);
@@ -745,7 +749,15 @@ public partial class FlyoutWindow : Window
         if (w <= 0 || h <= 0) return;
 
         double left, top;
-        if (s.CurrentCustom is { } c)
+        if (AnchorDip is { } a)
+        {
+            double inset = 18 * s.Scale;     // pencerenin kart çevresindeki gölge boşluğu
+            left = a.Left - inset;
+            top = a.Top > wa.Top + wa.Height / 2
+                ? a.Top - 6 - (h - inset)    // kontrol altta: flyout üstünde
+                : a.Bottom + 6 - inset;      // kontrol üstte: flyout altında
+        }
+        else if (s.CurrentCustom is { } c)
         {
             left = c.X; top = c.Y;
         }

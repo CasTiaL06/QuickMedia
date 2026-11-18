@@ -56,6 +56,14 @@ public static class L
         ["Yalnızca alttaki veya üstteki görev çubuğunu destekler. Çalan bir şey yokken ya da tam ekran uygulamada otomatik gizlenir. Beğenmezseniz yukarıdaki anahtarı kapatmanız yeterli."] =
             "Only a bottom or top taskbar is supported. It hides automatically when nothing is playing or in a fullscreen app. If you don't like it, just turn the switch above off.",
         ["Görev çubuğu modunu kapat"] = "Turn off taskbar mode",
+        ["Boş alanı otomatik bul"] = "Find the free space automatically",
+        ["Görev çubuğundaki düğmelerin yerini okuyup kontrolü sol taraftaki boş alana kendisi sığdırır (Widgets düğmesi varsa onun sağına). Kapalıyken aşağıdaki 'Soldan boşluk' kullanılır."] =
+            "Reads the positions of the taskbar buttons and fits the control into the free area on the left by itself (to the right of the Widgets button if present). When off, the 'Left offset' below is used.",
+        ["İlerleme çizgisi"] = "Progress line",
+        ["Kontrolün altında şarkının ilerlemesini gösteren ince çizgi."] = "A thin line under the control showing the song's progress.",
+        ["Kontrolün en fazla genişliği (otomatik modda boş alana sığacak şekilde kısalır)."] = "Maximum width of the control (in automatic mode it shrinks to fit the free area).",
+        ["Yalnızca otomatik yerleştirme kapalıyken: ortadaki simgelerin üstüne binmemesi için ayarlayın. Windows 11'de Widgets (hava durumu) düğmesi açıksa onun sağına denk gelecek şekilde artırın."] =
+            "Only when automatic placement is off: adjust so it doesn't overlap the centered icons. If the Windows 11 Widgets (weather) button is on, increase it so the control sits to its right.",
         ["ŞU AN ÇALIYOR"] = "NOW PLAYING",
         ["Şu an çalan bir şey yok"] = "Nothing is playing right now",
 

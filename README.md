@@ -50,7 +50,9 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Flyout yalnızca gösterilecek medya varken açılır; medya yokken ya da kaynak "Gizle" ise hiç görünmez
 
 - Görev çubuğu modu (Ayarlar > Görev çubuğu): çalan şarkıyı görev çubuğunun boş sol kısmında küçük bir kontrol olarak gösterir.
-  Tıkla: flyout aç/kapat · Tekerlek: çalan uygulamanın sesi · Sağ tık: menü. Genişlik ve soldan boşluk ayarlanabilir
+  Boş alanı UI Automation ile otomatik bulur (Widgets düğmesinin sağına sığar); kapak, kayan yazı, çalarken hareket eden
+  çubuklar, alt çizgide ilerleme, üzerine gelince kontroller. Tıkla: flyout kontrolün üstünden açılır · Tekerlek: çalan
+  uygulamanın sesi · Sağ tık: menü
 
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde

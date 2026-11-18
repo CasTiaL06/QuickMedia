@@ -39,6 +39,8 @@ public sealed class AppSettings
     public int TaskbarWidth { get; set; } = 260;
     public int TaskbarOffset { get; set; } = 12;
     public bool TaskbarSuppressFlyout { get; set; }
+    public bool TaskbarAuto { get; set; } = true;        // boş alanı otomatik bul
+    public bool TaskbarProgress { get; set; } = true;    // alttaki ince ilerleme çizgisi
     public bool StartWithWindows { get; set; }
 
     // Görünürlük koşulları

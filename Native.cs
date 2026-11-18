@@ -77,6 +77,22 @@ internal static class Native
         return true;
     }
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string cls, string? title);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr h, uint cmd);
+
+    internal static IntPtr FindTaskbarWindow() => FindWindow("Shell_TrayWnd", null);
+
+    /// <summary>Pencere görev çubuğunun z-sırasında üstünde mi? (Değilse yeniden öne alınmalı; her seferinde almak titreşim yapar.)</summary>
+    internal static bool IsAboveTaskbar(IntPtr hwnd)
+    {
+        var tb = FindTaskbarWindow();
+        if (tb == IntPtr.Zero || hwnd == IntPtr.Zero) return true;
+        int guard = 0;
+        for (var h = GetWindow(tb, 3 /*GW_HWNDPREV*/); h != IntPtr.Zero && guard < 500; h = GetWindow(h, 3), guard++)
+            if (h == hwnd) return true;
+        return false;
+    }
+
     /// <summary>Pencereyi piksel koordinatlarında yerleştirir ve en üste alır (odak çalmadan).</summary>
     internal static void PlaceTopmost(IntPtr hwnd, int x, int y, int w, int h)
     {
