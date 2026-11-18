@@ -11,6 +11,7 @@ public partial class App : Application
     public static MediaService Media { get; private set; } = null!;
     public static FlyoutController Flyout { get; private set; } = null!;
     public static HotkeyService Hotkey { get; private set; } = null!;
+    public static TaskbarWidget Taskbar { get; private set; } = null!;
 
     /// <summary>Ayarlar uygulandığında (tema, stil, boyut...) tetiklenir.</summary>
     public static event Action? Applied;
@@ -42,6 +43,7 @@ public partial class App : Application
 
             Media = new MediaService();
             Flyout = new FlyoutController(new FlyoutWindow());
+            Taskbar = new TaskbarWidget();
 
             Hotkey = new HotkeyService();
             Hotkey.Pressed += a => Dispatcher.BeginInvoke(() =>
@@ -65,7 +67,7 @@ public partial class App : Application
 
         Media.Changed += (info, ev) => Dispatcher.BeginInvoke(() =>
         {
-            try { Flyout.OnMediaChanged(info, ev); }
+            try { Flyout.OnMediaChanged(info, ev); Taskbar?.Refresh(); }
             catch (Exception ex) { Log.Write("Medya olayı hatası: " + ex); }
         });
         try { await Media.InitAsync(); }
@@ -91,14 +93,14 @@ public partial class App : Application
     }
 
     /// <summary>Windows ana sesine değil, yalnızca çalan uygulamanın sesine dokunur.</summary>
-    private static void AdjustVolume(float delta)
+    public static void AdjustVolume(float delta, bool nudge = true)
     {
         string id = Media.Current.AppId;
         var st = AppVolume.GetState(id);
         if (st == null) return;
         if (delta > 0 && st.Value.Muted) AppVolume.SetMute(id, false);
         AppVolume.SetVolume(id, Math.Clamp(st.Value.Volume + delta, 0f, 1f));
-        Flyout.NudgeVolume();
+        if (nudge) Flyout.NudgeVolume();
     }
 
     public static void ToggleSettings()
@@ -118,6 +120,7 @@ public partial class App : Application
         Media?.Repick();      // Gizle / Hep göster kuralları değişmiş olabilir: gösterilecek oturumu yeniden seç
         ThemeManager.Apply(Settings);
         Flyout.ApplySettings();
+        Taskbar?.Refresh();
         Applied?.Invoke();
     }
 
@@ -142,6 +145,7 @@ public partial class App : Application
                 app._settingsWindow.Closed += (_, _) => app._settingsWindow = null;
                 app._settingsWindow.Show();
             }
+            else if (page != null) app._settingsWindow.GoTo(page);
             app._settingsWindow.Activate();
         }
         catch (Exception ex)
@@ -172,7 +176,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        try { _tray?.Dispose(); Hotkey?.Dispose(); } catch { }
+        try { _tray?.Dispose(); Hotkey?.Dispose(); Taskbar?.Close(); } catch { }
         try { _mutex?.ReleaseMutex(); } catch { }
         base.OnExit(e);
     }

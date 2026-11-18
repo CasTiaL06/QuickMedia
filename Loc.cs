@@ -38,6 +38,24 @@ public static class L
         ["Önizleme göster"] = "Show preview",
         ["Sürüm {0}"] = "Version {0}",
         ["Üstte sabit"] = "Pinned on top",
+
+        // ---- Görev çubuğu ----
+        ["Görev çubuğu"] = "Taskbar",
+        ["QuickMedia'yı görev çubuğunun boş sol kısmında kullanın."] = "Use QuickMedia in the empty left part of the taskbar.",
+        ["Görev çubuğunda kullan"] = "Use in the taskbar",
+        ["Çalan şarkıyı görev çubuğunun sol tarafında küçük bir kontrol olarak gösterir. Tıklayınca flyout açılır, fare tekerleği çalan uygulamanın sesini değiştirir, sağ tık menü açar."] =
+            "Shows the playing song as a small control on the left side of the taskbar. Click opens the flyout, the mouse wheel changes the playing app's volume, right-click opens a menu.",
+        ["Genişlik"] = "Width",
+        ["Görev çubuğundaki kontrolün genişliği."] = "Width of the taskbar control.",
+        ["Soldan boşluk"] = "Left offset",
+        ["Ortadaki simgelerin üstüne binmemesi için ayarlayın. Windows 11'de Widgets (hava durumu) düğmesi açıksa onun sağına denk gelecek şekilde artırın."] =
+            "Adjust so it doesn't overlap the centered icons. If the Windows 11 Widgets (weather) button is on, increase it so the control sits to its right.",
+        ["Otomatik açılan flyout'u kapat"] = "Disable the auto-opening flyout",
+        ["Görev çubuğu kontrolü açıkken flyout kendiliğinden açılmaz; yalnızca kontrole tıklayınca ya da kısayolla açılır."] =
+            "While the taskbar control is on, the flyout does not open by itself; it opens only when you click the control or use the hotkey.",
+        ["Yalnızca alttaki veya üstteki görev çubuğunu destekler. Çalan bir şey yokken ya da tam ekran uygulamada otomatik gizlenir. Beğenmezseniz yukarıdaki anahtarı kapatmanız yeterli."] =
+            "Only a bottom or top taskbar is supported. It hides automatically when nothing is playing or in a fullscreen app. If you don't like it, just turn the switch above off.",
+        ["Görev çubuğu modunu kapat"] = "Turn off taskbar mode",
         ["ŞU AN ÇALIYOR"] = "NOW PLAYING",
         ["Şu an çalan bir şey yok"] = "Nothing is playing right now",
 

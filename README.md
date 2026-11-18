@@ -49,6 +49,9 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
   Spotify'ı göstermeye devam eder; kısayollar (oynat/sonraki/önceki/ses) da gösterilen oturum üzerinde çalışır
 - Flyout yalnızca gösterilecek medya varken açılır; medya yokken ya da kaynak "Gizle" ise hiç görünmez
 
+- Görev çubuğu modu (Ayarlar > Görev çubuğu): çalan şarkıyı görev çubuğunun boş sol kısmında küçük bir kontrol olarak gösterir.
+  Tıkla: flyout aç/kapat · Tekerlek: çalan uygulamanın sesi · Sağ tık: menü. Genişlik ve soldan boşluk ayarlanabilir
+
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.

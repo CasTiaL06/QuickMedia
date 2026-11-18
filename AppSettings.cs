@@ -33,6 +33,12 @@ public sealed class AppSettings
     public bool Pinned { get; set; }                     // medya varken flyout kapanmaz, hep üstte kalır
     public bool ShowPinButton { get; set; } = true;      // flyout köşesindeki iğne düğmesi
     public string Language { get; set; } = "auto";       // auto | tr | en
+
+    // Görev çubuğu modu
+    public bool UseTaskbar { get; set; }
+    public int TaskbarWidth { get; set; } = 260;
+    public int TaskbarOffset { get; set; } = 12;
+    public bool TaskbarSuppressFlyout { get; set; }
     public bool StartWithWindows { get; set; }
 
     // Görünürlük koşulları

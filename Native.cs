@@ -52,6 +52,37 @@ internal static class Native
         keybd_event(0xE8, 0, 2, UIntPtr.Zero);
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RECT { public int left, top, right, bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct APPBARDATA
+    {
+        public uint cbSize;
+        public IntPtr hWnd;
+        public uint uCallbackMessage;
+        public uint uEdge;
+        public RECT rc;
+        public IntPtr lParam;
+    }
+    [DllImport("shell32.dll")] private static extern IntPtr SHAppBarMessage(uint msg, ref APPBARDATA data);
+
+    /// <summary>Ana görev çubuğunun piksel dikdörtgeni ve kenarı (0 sol, 1 üst, 2 sağ, 3 alt).</summary>
+    internal static bool GetTaskbar(out RECT rc, out uint edge)
+    {
+        var d = new APPBARDATA { cbSize = (uint)Marshal.SizeOf<APPBARDATA>() };
+        if (SHAppBarMessage(5 /*ABM_GETTASKBARPOS*/, ref d) == IntPtr.Zero) { rc = default; edge = 3; return false; }
+        rc = d.rc;
+        edge = d.uEdge;
+        return true;
+    }
+
+    /// <summary>Pencereyi piksel koordinatlarında yerleştirir ve en üste alır (odak çalmadan).</summary>
+    internal static void PlaceTopmost(IntPtr hwnd, int x, int y, int w, int h)
+    {
+        if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, new IntPtr(-1), x, y, w, h, 0x0010); // NOACTIVATE
+    }
+
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
 
     /// <summary>Pencereyi diğer "her zaman üstte" pencerelerin de önüne alır (odak çalmadan).</summary>

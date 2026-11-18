@@ -61,6 +61,7 @@ public sealed class FlyoutController
         if (!HasDisplayable(info)) { _manual = false; HideNow(); return; }
         if (_manual) return;
 
+        if (s.UseTaskbar && s.TaskbarSuppressFlyout && !s.Pinned) { HideNow(); return; }   // yalnızca görev çubuğu kontrolü
         if (s.HideInFullscreen && Native.IsFullscreenBusy()) { HideNow(); return; }
         if (s.Pinned) { if (!_suppressed) Show(0); return; }
 
