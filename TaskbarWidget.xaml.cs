@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -12,8 +13,8 @@ namespace QuickMedia;
 
 /// <summary>
 /// Görev çubuğunun boş sol kısmına oturan "şu an çalıyor" kontrolü.
-/// Tıkla: flyout aç/kapat (kontrolün üstünden açılır) · Tekerlek: çalan uygulamanın sesi · Sağ tık: menü.
-/// Normalde kapak + kayan yazı + ses çubukları; üzerine gelince kontroller belirir.
+/// Fare tekerleği: çalan uygulamanın sesi · Shift + tekerlek: 5 sn ileri/geri · Alt çizgiye tıkla/sürükle: şarkıda atla
+/// Orta tık: oynat/duraklat · Sağ tık: menü · (flyout modunda) gövdeye tıkla: flyout aç/kapat.
 /// </summary>
 public partial class TaskbarWidget : Window
 {
@@ -22,14 +23,23 @@ public partial class TaskbarWidget : Window
     private bool _eqOn;
     private bool _hover;
     private bool _light;
+    private bool _seeking;
+    private int _miss;                 // üst üste "gösterme" kararı sayısı (kısa kesintilerde titreşmesin)
+    private int _fsCount;              // üst üste "tam ekran" sayısı
+    private double _lastDur;
     private string _key = "";
     private string _trackKey = "";
     private DateTime _themeStamp = DateTime.MinValue;
+    private DateTime _seekHold = DateTime.MinValue;
+    private DateTime _lastRaise = DateTime.MinValue;
     private (int, int, int, int) _lastRect;
     private Rect _rectDip;
-    private volatile Tuple<int, int>? _probe;
+
+    private volatile Tuple<int, int>? _probe;        // son başarılı boş alan ölçümü
+    private DateTime _probeOk = DateTime.MinValue;
     private DateTime _probeStamp = DateTime.MinValue;
     private bool _probing;
+
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(600) };
 
     private static bool Anim => App.Settings.Animations;
@@ -60,17 +70,33 @@ public partial class TaskbarWidget : Window
         Hit.MouseEnter += (_, _) => SetHover(true);
         Hit.MouseLeave += (_, _) => SetHover(false);
 
+        // Gövdeye tıklama: yalnızca flyout modunda flyout'u açar. "Yalnızca görev çubuğu" modunda hiçbir şey yapmaz
+        // (yanlışlıkla müziği durdurmasın); oynat/duraklat için üstüne gelince çıkan düğme ya da orta tık kullanılır.
         Hit.MouseLeftButtonUp += (_, e) =>
         {
+            if (e.Handled) return;
             for (DependencyObject? d = e.OriginalSource as DependencyObject; d != null && d != Hit;
                  d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
                 if (d is ButtonBase) return;
-            if (App.TaskbarOnly) App.Media.TogglePlay();   // flyout yok: tıklama oynat / duraklat
-            else App.Flyout.Toggle(_rectDip);              // flyout kontrolün hemen üstünden açılır
+            if (!App.TaskbarOnly) App.Flyout.Toggle(_rectDip);
+        };
+        Hit.MouseDown += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Middle) { App.Media.TogglePlay(); e.Handled = true; }
         };
 
-        Hit.MouseWheel += (_, e) => App.AdjustVolume(e.Delta > 0 ? 0.05f : -0.05f, nudge: false);
+        Hit.MouseWheel += (_, e) =>
+        {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) SeekBy(e.Delta > 0 ? 5 : -5);
+            else App.AdjustVolume(e.Delta > 0 ? 0.05f : -0.05f, nudge: false);
+        };
         Hit.MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
+
+        SeekHit.MouseEnter += (_, _) => SetSeekHover(true);
+        SeekHit.MouseLeave += (_, _) => { if (!_seeking) SetSeekHover(false); };
+        SeekHit.MouseLeftButtonDown += SeekHit_Down;
+        SeekHit.MouseMove += SeekHit_Move;
+        SeekHit.MouseLeftButtonUp += SeekHit_Up;
 
         TextHost.SizeChanged += (_, _) => RefreshMarquee();
     }
@@ -83,7 +109,12 @@ public partial class TaskbarWidget : Window
 
         var settings = new MenuItem { Header = L.T("Ayarlar") };
         settings.Click += (_, _) => App.ShowSettings("Taskbar");
-        var toggle = new MenuItem { Header = App.TaskbarOnly ? L.F("Geçici olarak gizle ({0} ile geri gelir)", HotkeyService.Describe(HotkeyAction.Toggle)) : L.T("Göster / Gizle") };
+        var toggle = new MenuItem
+        {
+            Header = App.TaskbarOnly
+                ? L.F("Geçici olarak gizle ({0} ile geri gelir)", HotkeyService.Describe(HotkeyAction.Toggle))
+                : L.T("Göster / Gizle")
+        };
         toggle.Click += (_, _) => { if (App.TaskbarOnly) ToggleUserHidden(); else App.Flyout.Toggle(_rectDip); };
         var off = new MenuItem { Header = L.T("Görev çubuğu modunu kapat") };
         off.Click += (_, _) =>
@@ -108,24 +139,35 @@ public partial class TaskbarWidget : Window
         try
         {
             var s = App.Settings;
-            if (!s.UseTaskbar || !s.TaskbarOnly) UserHidden = false;   // geçici gizleme yalnızca bu modda anlamlı
-            bool want = s.UseTaskbar
-                        && !UserHidden
-                        && FlyoutController.HasDisplayable(App.Media.Current)
-                        && !(s.HideInFullscreen && Native.IsFullscreenBusy());
+            if (!s.UseTaskbar || !s.TaskbarOnly) UserHidden = false;
 
-            if (!want || !Native.GetTaskbar(out var rc, out uint edge) || (edge != 1 && edge != 3))
-            {
-                SlideOut();
-                return;
-            }
+            // Kullanıcı kapattıysa / gizlediyse hemen kaybol; geçici durumlarda (medya boşluğu, tam ekran, ölçüm)
+            // birkaç tur bekle: aksi halde kontrol "açılıp kapanıyor" gibi görünür.
+            if (!s.UseTaskbar || UserHidden) { _miss = 0; SlideOut(); return; }
+
+            bool media = FlyoutController.HasDisplayable(App.Media.Current);
+            bool fs = s.HideInFullscreen && Native.IsFullscreenBusy();
+            _fsCount = fs ? _fsCount + 1 : 0;
+
+            Native.RECT rc = default;
+            bool tbOk = Native.GetTaskbar(out rc, out uint edge) && (edge == 1 || edge == 3);
 
             var dpi = VisualTreeHelper.GetDpi(this);
             double sx = dpi.DpiScaleX, sy = dpi.DpiScaleY;
 
-            if (s.TaskbarAuto) StartProbe(rc);
-            var area = ComputeArea(rc, sx);
-            if (area == null) { SlideOut(); return; }
+            (int X, int W)? area = null;
+            if (tbOk)
+            {
+                if (s.TaskbarAuto) StartProbe(rc);
+                area = ComputeArea(rc, sx);
+            }
+
+            if (!media || _fsCount >= 3 || !tbOk || area == null)
+            {
+                if (++_miss >= 3) SlideOut();
+                return;
+            }
+            _miss = 0;
 
             UpdateColors();
             Update(App.Displayed);
@@ -142,7 +184,8 @@ public partial class TaskbarWidget : Window
         var s = App.Settings;
         int userW = (int)Math.Round(Math.Clamp(s.TaskbarWidth, 160, 600) * sx);
 
-        if (s.TaskbarAuto && _probe is { } p)
+        // Son başarılı ölçüm 2 dakika boyunca geçerli: ölçüm bir an başarısız olsa da kontrol zıplamaz
+        if (s.TaskbarAuto && _probe is { } p && (DateTime.Now - _probeOk).TotalSeconds < 120)
         {
             int x = p.Item1 + (int)Math.Round(8 * sx);
             int avail = p.Item2 - p.Item1 - (int)Math.Round(20 * sx);
@@ -152,7 +195,7 @@ public partial class TaskbarWidget : Window
         return (rc.left + (int)Math.Round(s.TaskbarOffset * sx), userW);
     }
 
-    /// <summary>Soldaki boş alanı arka planda (UI Automation ile) bulur; sonuç birkaç saniye geçerlidir.</summary>
+    /// <summary>Soldaki boş alanı arka planda (UI Automation ile) bulur. Başarısız ölçüm eskisini silmez; küçük değişiklikler yok sayılır.</summary>
     private void StartProbe(Native.RECT rc)
     {
         if (_probing || (DateTime.Now - _probeStamp).TotalSeconds < 4) return;
@@ -160,7 +203,14 @@ public partial class TaskbarWidget : Window
         _probeStamp = DateTime.Now;
         Task.Run(() =>
         {
-            try { _probe = TaskbarProbe.FindFreeArea(rc); }
+            try
+            {
+                var r = TaskbarProbe.FindFreeArea(rc);
+                if (r == null) return;
+                var old = _probe;
+                _probeOk = DateTime.Now;
+                if (old == null || Math.Abs(old.Item1 - r.Item1) > 6 || Math.Abs(old.Item2 - r.Item2) > 6) _probe = r;
+            }
             finally { _probing = false; }
         });
     }
@@ -176,12 +226,18 @@ public partial class TaskbarWidget : Window
         if (Math.Abs(Width - wDip) > 0.5) Width = wDip;
         if (Math.Abs(Height - hDip) > 0.5) Height = hDip;
 
-        // Yalnızca konum değiştiyse ya da görev çubuğunun arkasında kaldıysa öne al: gereksiz çağrı titreşim yapar
+        // Yalnızca konum değiştiyse ya da görev çubuğunun arkasında kaldıysa öne al; sık çağrı titreşim yapar
         var r = (x, y, wpx, hpx);
-        if (r != _lastRect || !Native.IsAboveTaskbar(_hwnd))
+        if (r != _lastRect)
         {
             Native.PlaceTopmost(_hwnd, x, y, wpx, hpx);
             _lastRect = r;
+            _lastRaise = DateTime.Now;
+        }
+        else if ((DateTime.Now - _lastRaise).TotalSeconds > 1.5 && !Native.IsAboveTaskbar(_hwnd))
+        {
+            Native.PlaceTopmost(_hwnd, x, y, wpx, hpx);
+            _lastRaise = DateTime.Now;
         }
         _rectDip = new Rect(x / sx, y / sy, wDip, hDip);
     }
@@ -205,7 +261,7 @@ public partial class TaskbarWidget : Window
 
     private void SlideOut()
     {
-        if (!_shown) { if (IsVisible && !_shown && Opacity <= 0.01) Hide(); return; }
+        if (!_shown) { if (IsVisible && Opacity <= 0.01) Hide(); return; }
         _shown = false;
         UpdateEq(false);
 
@@ -274,7 +330,6 @@ public partial class TaskbarWidget : Window
         double textW = tb.DesiredSize.Width, boxW = clip.ActualWidth;
         if (boxW <= 0 || textW <= boxW + 1) return;
 
-        // sağ kenarda yumuşak solma
         var mask = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
         mask.GradientStops.Add(new GradientStop(Colors.Black, 0));
         mask.GradientStops.Add(new GradientStop(Colors.Black, 0.9));
@@ -296,6 +351,100 @@ public partial class TaskbarWidget : Window
     {
         SetupMarquee(TitleClip, TitleText, TitleMove);
         SetupMarquee(SubClip, SubText, SubMove);
+    }
+
+    // ================= İlerleme çizgisi: göster, tıkla / sürükle ile atla =================
+
+    private static string Fmt(double sec) => $"{(int)(sec / 60)}:{(int)(sec % 60):00}";
+
+    private void SetSeekHover(bool on)
+    {
+        double d = Anim ? 140 : 1;
+        ProgressTrack.BeginAnimation(HeightProperty, new DoubleAnimation(on ? 4 : 2, TimeSpan.FromMilliseconds(d)));
+        SeekKnob.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, TimeSpan.FromMilliseconds(d)));
+    }
+
+    private void MoveKnob() => SeekKnob.Margin = new Thickness(Math.Max(0, ProgressFill.Width - 4.5), 0, 0, -1);
+
+    private double SeekRatio(MouseEventArgs e)
+    {
+        double w = SeekHit.ActualWidth;
+        return w <= 0 ? 0 : Math.Clamp(e.GetPosition(SeekHit).X / w, 0, 1);
+    }
+
+    private void PreviewSeek(double ratio)
+    {
+        ProgressFill.BeginAnimation(WidthProperty, null);
+        ProgressFill.Width = ProgressTrack.ActualWidth * ratio;
+        MoveKnob();
+        if (_lastDur > 0) SubText.Text = $"{Fmt(_lastDur * ratio)} / {Fmt(_lastDur)}";   // hedef zaman
+    }
+
+    private void RestoreSub()
+    {
+        var m = App.Displayed;
+        SubText.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
+        Dispatcher.InvokeAsync(RefreshMarquee, DispatcherPriority.Loaded);
+    }
+
+    private void SeekHit_Down(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;                       // gövde tıklamasına karışmasın
+        if (_lastDur <= 0) return;              // süre bilgisi yoksa atlanamaz
+        _seeking = true;
+        SeekHit.CaptureMouse();
+        PreviewSeek(SeekRatio(e));
+    }
+
+    private void SeekHit_Move(object sender, MouseEventArgs e)
+    {
+        if (_seeking) PreviewSeek(SeekRatio(e));
+    }
+
+    private void SeekHit_Up(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (!_seeking) return;
+        _seeking = false;
+        SeekHit.ReleaseMouseCapture();
+        double r = SeekRatio(e);
+        PreviewSeek(r);
+        App.Media.Seek(r);
+        _seekHold = DateTime.Now.AddMilliseconds(1000);   // çizgi eski konuma geri zıplamasın
+        if (!SeekHit.IsMouseOver) SetSeekHover(false);
+        RestoreSub();
+    }
+
+    private void SeekBy(double seconds)
+    {
+        var tl = App.Media.GetTimeline();
+        if (tl is not { } t || t.Dur.TotalSeconds <= 0) return;
+        App.Media.Seek(Math.Clamp((t.Pos.TotalSeconds + seconds) / t.Dur.TotalSeconds, 0, 1));
+        _seekHold = DateTime.Now.AddMilliseconds(800);
+    }
+
+    private void UpdateProgress()
+    {
+        bool show = App.Settings.TaskbarProgress;
+        SeekHit.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show) return;
+
+        var tl = App.Media.GetTimeline();
+        _lastDur = tl?.Dur.TotalSeconds ?? 0;
+        if (_seeking || DateTime.Now < _seekHold) return;
+
+        double ratio = tl is { } t && t.Dur.TotalSeconds > 0 ? t.Pos.TotalSeconds / t.Dur.TotalSeconds : 0;
+        double target = Math.Max(0, ProgressTrack.ActualWidth * ratio);
+        if (!Anim || Math.Abs(ProgressFill.Width - target) > 60)
+        {
+            ProgressFill.BeginAnimation(WidthProperty, null);
+            ProgressFill.Width = target;
+        }
+        else
+        {
+            ProgressFill.BeginAnimation(WidthProperty, new DoubleAnimation(target, TimeSpan.FromMilliseconds(600)));   // akıcı ilerleme
+        }
+        MoveKnob();
     }
 
     // ================= İçerik / renkler =================
@@ -336,7 +485,7 @@ public partial class TaskbarWidget : Window
         _trackKey = trackKey;
 
         TitleText.Text = m.Title;
-        SubText.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
+        if (!_seeking) SubText.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
         PlayBtn.Content = m.IsPlaying ? "\uE769" : "\uE768";
 
         if (m.Art != null)
@@ -360,19 +509,6 @@ public partial class TaskbarWidget : Window
                 new DoubleAnimation(9, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             Art.BeginAnimation(OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromMilliseconds(380)));
         }
-    }
-
-    private void UpdateProgress()
-    {
-        bool show = App.Settings.TaskbarProgress;
-        ProgressTrack.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (!show) return;
-
-        var tl = App.Media.GetTimeline();
-        double ratio = tl is { } t && t.Dur.TotalSeconds > 0 ? t.Pos.TotalSeconds / t.Dur.TotalSeconds : 0;
-        double target = Math.Max(0, ProgressTrack.ActualWidth * ratio);
-        if (!Anim || Math.Abs(ProgressFill.Width - target) > 60) { ProgressFill.BeginAnimation(WidthProperty, null); ProgressFill.Width = target; return; }
-        ProgressFill.BeginAnimation(WidthProperty, new DoubleAnimation(target, TimeSpan.FromMilliseconds(600)));   // akıcı ilerleme
     }
 
     private void Play_Click(object sender, RoutedEventArgs e) => App.Media.TogglePlay();

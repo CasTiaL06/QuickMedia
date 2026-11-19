@@ -64,7 +64,8 @@ public static class L
         ["Görev çubuğundaki düğmelerin yerini okuyup kontrolü sol taraftaki boş alana kendisi sığdırır (Widgets düğmesi varsa onun sağına). Kapalıyken aşağıdaki 'Soldan boşluk' kullanılır."] =
             "Reads the positions of the taskbar buttons and fits the control into the free area on the left by itself (to the right of the Widgets button if present). When off, the 'Left offset' below is used.",
         ["İlerleme çizgisi"] = "Progress line",
-        ["Kontrolün altında şarkının ilerlemesini gösteren ince çizgi."] = "A thin line under the control showing the song's progress.",
+        ["Kontrolün altında şarkının ilerlemesini gösteren ince çizgi. Çizgiye tıklayıp sürükleyerek şarkıda istediğiniz yere atlayabilirsiniz; Shift + fare tekerleği 5 sn ileri / geri sarar."] =
+            "A thin line under the control showing the song's progress. Click or drag it to jump anywhere in the song; Shift + mouse wheel seeks 5 s forward / back.",
         ["Kontrolün en fazla genişliği (otomatik modda boş alana sığacak şekilde kısalır)."] = "Maximum width of the control (in automatic mode it shrinks to fit the free area).",
         ["Yalnızca otomatik yerleştirme kapalıyken: ortadaki simgelerin üstüne binmemesi için ayarlayın. Windows 11'de Widgets (hava durumu) düğmesi açıksa onun sağına denk gelecek şekilde artırın."] =
             "Only when automatic placement is off: adjust so it doesn't overlap the centered icons. If the Windows 11 Widgets (weather) button is on, increase it so the control sits to its right.",

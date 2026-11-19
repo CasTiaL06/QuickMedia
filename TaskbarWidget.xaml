@@ -74,9 +74,15 @@
         </Grid>
 
         <!-- Alt kenarda ince ilerleme çizgisi -->
-        <Border x:Name="ProgressTrack" Grid.ColumnSpan="3" Height="2" VerticalAlignment="Bottom" Margin="4,0,4,2" CornerRadius="1">
-          <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" CornerRadius="1" Background="{DynamicResource AccentBrush}"/>
-        </Border>
+        <!-- Tıkla / sürükle: şarkıda istediğin yere atla (görünen çizgi ince, tıklanabilir alan daha geniş) -->
+        <Grid x:Name="SeekHit" Grid.ColumnSpan="3" Height="14" VerticalAlignment="Bottom" Margin="4,0,4,0"
+              Background="Transparent" Cursor="Hand">
+          <Border x:Name="ProgressTrack" Height="2" VerticalAlignment="Bottom" Margin="0,0,0,2" CornerRadius="1" IsHitTestVisible="False">
+            <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" CornerRadius="1" Background="{DynamicResource AccentBrush}"/>
+          </Border>
+          <Ellipse x:Name="SeekKnob" Width="9" Height="9" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                   Margin="0,0,0,-1" Opacity="0" IsHitTestVisible="False" Fill="{DynamicResource AccentBrush}"/>
+        </Grid>
       </Grid>
     </Border>
   </Grid>

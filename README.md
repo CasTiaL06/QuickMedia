@@ -51,9 +51,9 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 
 - Görev çubuğu modu (Ayarlar > Görev çubuğu): çalan şarkıyı görev çubuğunun boş sol kısmında küçük bir kontrol olarak gösterir.
   Boş alanı UI Automation ile otomatik bulur (Widgets düğmesinin sağına sığar); kapak, kayan yazı, çalarken hareket eden
-  çubuklar, alt çizgide ilerleme, üzerine gelince kontroller. Tıkla: flyout kontrolün üstünden açılır · Tekerlek: çalan
-  uygulamanın sesi · Sağ tık: menü
-- "Yalnızca görev çubuğunda göster": flyout hiç açılmaz, sadece görev çubuğu kontrolü görünür (tıklama = oynat/duraklat,
+  çubuklar, alt çizgide ilerleme, üzerine gelince kontroller. Alt çizgiye tıkla/sürükle: şarkıda atla · Shift+tekerlek: 5 sn ileri/geri ·
+  Tekerlek: çalan uygulamanın sesi · Orta tık: oynat/duraklat · Sağ tık: menü · Gövdeye tıkla: flyout kontrolün üstünden açılır
+- "Yalnızca görev çubuğunda göster": flyout hiç açılmaz, sadece görev çubuğu kontrolü görünür (gövdeye tıklamak hiçbir şey yapmaz,
   Alt+P = kontrolü geçici gizle / geri getir)
 
 ## Notlar

@@ -26,7 +26,7 @@ public static class Platforms
         new("deezer",      "Deezer",         "Uygulama / Web", ["deezer"],                                ["Deezer"],         ["deezer.com"]),
         new("vlc",         "VLC",            "Uygulama",       ["vlc"],                                   [],                 []),
         new("mediaplayer", "Medya Oynatıcı", "Uygulama",       ["zunemusic", "zunevideo", "mediaplayer"], [],                 []),
-        new("lol",         "League of Legends", "Oyun",        ["league", "riot", "lol"],                 [],                 []),
+        new("lol",         "League of Legends", "Oyun",        ["league", "riot"],                 [],                 []),
         new("discord",     "Discord",        "Uygulama",       ["discord"],                               [],                 []),
         new("steam",       "Steam",          "Uygulama",       ["steam"],                                 [],                 []),
         new("other",       "Diğer",          "Bilinmeyen kaynaklar", [],                                  [],                 []),
