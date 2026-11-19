@@ -421,7 +421,8 @@ public partial class FlyoutWindow : Window
         }
         else
         {
-            Card.Background = Brushes.Transparent;   // şeffaf ama fareyle sürüklenebilir
+            // 1/255 opaklık: tamamen şeffaf pikseller fare tıklamasını arkadaki pencereye geçirir; böylece her yerinden sürüklenebilir
+            Card.Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
             Card.BorderBrush = Brushes.Transparent;
             Card.BorderThickness = new Thickness(0);
             Card.Effect = null;

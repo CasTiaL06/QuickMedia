@@ -31,7 +31,6 @@ public partial class TaskbarWidget : Window
     private string _trackKey = "";
     private DateTime _themeStamp = DateTime.MinValue;
     private DateTime _seekHold = DateTime.MinValue;
-    private DateTime _lastRaise = DateTime.MinValue;
     private (int, int, int, int) _lastRect;
     private Rect _rectDip;
 
@@ -41,6 +40,12 @@ public partial class TaskbarWidget : Window
     private bool _probing;
 
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+    // Z-sırası bekçisi: görev çubuğu öne geçerse kontrol neredeyse anında geri alınır
+    private readonly DispatcherTimer _guard = new() { Interval = TimeSpan.FromMilliseconds(150) };
+    private DateTime _burstUntil = DateTime.MinValue;
+    private IntPtr _fgHook;
+    private Native.WinEventDelegate? _fgCb;
 
     private static bool Anim => App.Settings.Animations;
 
@@ -66,6 +71,24 @@ public partial class TaskbarWidget : Window
 
         _tick.Tick += (_, _) => Refresh();
         _tick.Start();
+
+        _guard.Tick += (_, _) =>
+        {
+            EnsureOnTop();
+            if (DateTime.Now > _burstUntil) _guard.Interval = TimeSpan.FromMilliseconds(150);
+        };
+        _guard.Start();
+
+        // Başka bir uygulamaya / görev çubuğuna tıklanınca Windows görev çubuğunu öne alır:
+        // o anda kısa süre sık sık kontrol edip kontrolü hemen geri öne alıyoruz.
+        _fgCb = (_, _, _, _, _, _, _) =>
+        {
+            EnsureOnTop();
+            _burstUntil = DateTime.Now.AddMilliseconds(700);
+            _guard.Interval = TimeSpan.FromMilliseconds(30);
+        };
+        _fgHook = Native.HookForeground(_fgCb);
+        Closed += (_, _) => Native.Unhook(_fgHook);
 
         Hit.MouseEnter += (_, _) => SetHover(true);
         Hit.MouseLeave += (_, _) => SetHover(false);
@@ -232,14 +255,17 @@ public partial class TaskbarWidget : Window
         {
             Native.PlaceTopmost(_hwnd, x, y, wpx, hpx);
             _lastRect = r;
-            _lastRaise = DateTime.Now;
-        }
-        else if ((DateTime.Now - _lastRaise).TotalSeconds > 1.5 && !Native.IsAboveTaskbar(_hwnd))
-        {
-            Native.PlaceTopmost(_hwnd, x, y, wpx, hpx);
-            _lastRaise = DateTime.Now;
         }
         _rectDip = new Rect(x / sx, y / sy, wDip, hDip);
+    }
+
+    /// <summary>Kontrol görev çubuğunun arkasında kaldıysa (yalnızca o zaman) yeniden öne alır.</summary>
+    private void EnsureOnTop()
+    {
+        if (!_shown || _hwnd == IntPtr.Zero || _lastRect.Item3 == 0) return;   // henüz yerleştirilmediyse yapma
+        if (Native.IsAboveTaskbar(_hwnd)) return;
+        var (x, y, w, h) = _lastRect;
+        Native.PlaceTopmost(_hwnd, x, y, w, h);
     }
 
     // ================= Animasyonlar =================

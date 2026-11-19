@@ -15,7 +15,8 @@
     <!-- üzerine gelince yumuşakça beliren zemin -->
     <Border x:Name="HoverBg" CornerRadius="8" Opacity="0" IsHitTestVisible="False"/>
 
-    <Border x:Name="Hit" CornerRadius="8" Background="Transparent" Padding="6,0,4,0">
+    <!-- #01000000: tamamen şeffaf pikseller fare tıklamasını altındaki görev çubuğuna geçirir; 1/255 opaklık bunu engeller -->
+    <Border x:Name="Hit" CornerRadius="8" Background="#01000000" Padding="6,0,4,0">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>

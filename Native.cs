@@ -80,6 +80,14 @@ internal static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string cls, string? title);
     [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr h, uint cmd);
 
+    internal delegate void WinEventDelegate(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+    [DllImport("user32.dll")] private static extern IntPtr SetWinEventHook(uint evMin, uint evMax, IntPtr hmod, WinEventDelegate cb, uint pid, uint tid, uint flags);
+    [DllImport("user32.dll")] private static extern bool UnhookWinEvent(IntPtr hook);
+
+    /// <summary>Ön plandaki pencere değişince (başka uygulamaya tıklama vb.) geri çağrılır.</summary>
+    internal static IntPtr HookForeground(WinEventDelegate cb) => SetWinEventHook(0x0003 /*EVENT_SYSTEM_FOREGROUND*/, 0x0003, IntPtr.Zero, cb, 0, 0, 0 /*OUTOFCONTEXT*/);
+    internal static void Unhook(IntPtr hook) { if (hook != IntPtr.Zero) UnhookWinEvent(hook); }
+
     internal static IntPtr FindTaskbarWindow() => FindWindow("Shell_TrayWnd", null);
 
     /// <summary>Pencere görev çubuğunun z-sırasında üstünde mi? (Değilse yeniden öne alınmalı; her seferinde almak titreşim yapar.)</summary>
