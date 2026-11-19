@@ -53,6 +53,8 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
   Boş alanı UI Automation ile otomatik bulur (Widgets düğmesinin sağına sığar); kapak, kayan yazı, çalarken hareket eden
   çubuklar, alt çizgide ilerleme, üzerine gelince kontroller. Tıkla: flyout kontrolün üstünden açılır · Tekerlek: çalan
   uygulamanın sesi · Sağ tık: menü
+- "Yalnızca görev çubuğunda göster": flyout hiç açılmaz, sadece görev çubuğu kontrolü görünür (tıklama = oynat/duraklat,
+  Alt+P = kontrolü geçici gizle / geri getir)
 
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde

@@ -34,6 +34,15 @@ public partial class TaskbarWidget : Window
 
     private static bool Anim => App.Settings.Animations;
 
+    /// <summary>"Yalnızca görev çubuğunda" modunda kısayolla geçici gizlenmiş mi?</summary>
+    public bool UserHidden { get; private set; }
+
+    public void ToggleUserHidden()
+    {
+        UserHidden = !UserHidden;
+        Refresh();
+    }
+
     public TaskbarWidget()
     {
         InitializeComponent();
@@ -56,7 +65,8 @@ public partial class TaskbarWidget : Window
             for (DependencyObject? d = e.OriginalSource as DependencyObject; d != null && d != Hit;
                  d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
                 if (d is ButtonBase) return;
-            App.Flyout.Toggle(_rectDip);     // flyout kontrolün hemen üstünden açılır
+            if (App.TaskbarOnly) App.Media.TogglePlay();   // flyout yok: tıklama oynat / duraklat
+            else App.Flyout.Toggle(_rectDip);              // flyout kontrolün hemen üstünden açılır
         };
 
         Hit.MouseWheel += (_, e) => App.AdjustVolume(e.Delta > 0 ? 0.05f : -0.05f, nudge: false);
@@ -73,8 +83,8 @@ public partial class TaskbarWidget : Window
 
         var settings = new MenuItem { Header = L.T("Ayarlar") };
         settings.Click += (_, _) => App.ShowSettings("Taskbar");
-        var toggle = new MenuItem { Header = L.T("Göster / Gizle") };
-        toggle.Click += (_, _) => App.Flyout.Toggle(_rectDip);
+        var toggle = new MenuItem { Header = App.TaskbarOnly ? L.F("Geçici olarak gizle ({0} ile geri gelir)", HotkeyService.Describe(HotkeyAction.Toggle)) : L.T("Göster / Gizle") };
+        toggle.Click += (_, _) => { if (App.TaskbarOnly) ToggleUserHidden(); else App.Flyout.Toggle(_rectDip); };
         var off = new MenuItem { Header = L.T("Görev çubuğu modunu kapat") };
         off.Click += (_, _) =>
         {
@@ -98,7 +108,9 @@ public partial class TaskbarWidget : Window
         try
         {
             var s = App.Settings;
+            if (!s.UseTaskbar || !s.TaskbarOnly) UserHidden = false;   // geçici gizleme yalnızca bu modda anlamlı
             bool want = s.UseTaskbar
+                        && !UserHidden
                         && FlyoutController.HasDisplayable(App.Media.Current)
                         && !(s.HideInFullscreen && Native.IsFullscreenBusy());
 

@@ -115,6 +115,9 @@ public partial class App : Application
 
     public static void RaiseApplied() => Applied?.Invoke();
 
+    /// <summary>"Yalnızca görev çubuğunda göster" etkin mi? (flyout hiç açılmaz)</summary>
+    public static bool TaskbarOnly => Settings.UseTaskbar && Settings.TaskbarOnly;
+
     public static void ApplyAll()
     {
         Media?.Repick();      // Gizle / Hep göster kuralları değişmiş olabilir: gösterilecek oturumu yeniden seç

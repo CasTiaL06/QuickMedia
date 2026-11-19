@@ -56,6 +56,10 @@ public static class L
         ["Yalnızca alttaki veya üstteki görev çubuğunu destekler. Çalan bir şey yokken ya da tam ekran uygulamada otomatik gizlenir. Beğenmezseniz yukarıdaki anahtarı kapatmanız yeterli."] =
             "Only a bottom or top taskbar is supported. It hides automatically when nothing is playing or in a fullscreen app. If you don't like it, just turn the switch above off.",
         ["Görev çubuğu modunu kapat"] = "Turn off taskbar mode",
+        ["Yalnızca görev çubuğunda göster"] = "Show only in the taskbar",
+        ["Flyout hiçbir zaman ekranda açılmaz; yalnızca görev çubuğundaki kontrol görünür. Kontrole tıklamak oynat/duraklat yapar, kısayol (Alt+P) kontrolü geçici olarak gizler / geri getirir."] =
+            "The flyout never opens on screen; only the taskbar control is shown. Clicking the control plays / pauses, and the hotkey (Alt+P) temporarily hides / restores it.",
+        ["Geçici olarak gizle ({0} ile geri gelir)"] = "Hide for now (comes back with {0})",
         ["Boş alanı otomatik bul"] = "Find the free space automatically",
         ["Görev çubuğundaki düğmelerin yerini okuyup kontrolü sol taraftaki boş alana kendisi sığdırır (Widgets düğmesi varsa onun sağına). Kapalıyken aşağıdaki 'Soldan boşluk' kullanılır."] =
             "Reads the positions of the taskbar buttons and fits the control into the free area on the left by itself (to the right of the Widgets button if present). When off, the 'Left offset' below is used.",

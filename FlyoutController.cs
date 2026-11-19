@@ -60,6 +60,7 @@ public sealed class FlyoutController
 
         // Gösterilecek medya yok (hiç oturum yok ya da kaynak gizli): flyout hiç görünmez
         if (!HasDisplayable(info)) { _manual = false; HideNow(); return; }
+        if (App.TaskbarOnly) { _manual = false; HideNow(); return; }   // yalnızca görev çubuğu kontrolü
         if (_manual) return;
 
         if (s.UseTaskbar && s.TaskbarSuppressFlyout && !s.Pinned) { HideNow(); return; }   // yalnızca görev çubuğu kontrolü
@@ -98,6 +99,7 @@ public sealed class FlyoutController
     /// <summary>Kısayol: görünüyorsa gizle, gizliyse aç (gösterilecek medya yoksa hiçbir şey yapmaz).</summary>
     public void Toggle(Rect? anchor = null)
     {
+        if (App.TaskbarOnly) { App.Taskbar.ToggleUserHidden(); return; }   // kısayol: görev çubuğu kontrolünü gizle / göster
         if (!App.Settings.Enabled) return;
         if (_win.IsShown)
         {
@@ -135,7 +137,7 @@ public sealed class FlyoutController
     public void NudgeVolume()
     {
         var s = App.Settings;
-        if (!s.Enabled || !s.ShowVolumeControls || !HasDisplayable(App.Media.Current)) return;
+        if (App.TaskbarOnly || !s.Enabled || !s.ShowVolumeControls || !HasDisplayable(App.Media.Current)) return;
         if (_win.IsShown) { _win.Poke(); return; }
         _win.Demo = null;
         _win.Update(App.Displayed);
@@ -152,7 +154,7 @@ public sealed class FlyoutController
         _suppressed = false;
 
         var info = App.Media.Current;
-        if (HasDisplayable(info))
+        if (HasDisplayable(info) && !App.TaskbarOnly)
         {
             if (pinned) { _win.Demo = null; _win.Update(App.Displayed); Show(0); }
             else
@@ -168,7 +170,7 @@ public sealed class FlyoutController
     public void ApplySettings()
     {
         _win.ApplySettings();
-        if (!App.Settings.Enabled) HideNow();
+        if (!App.Settings.Enabled || App.TaskbarOnly) HideNow();
     }
 
     private void Show(int seconds)
