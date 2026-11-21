@@ -144,6 +144,10 @@ public static class PlatformIcons
                 Rr(c, 10.3, 7, 1.6, 5, 0.4, B("#9146FF"));
                 Rr(c, 14.6, 7, 1.6, 5, 0.4, B("#9146FF"));
                 break;
+            case "kick":
+                Rr(c, 0, 0, 24, 24, 5, B("#53FC18"));
+                Tx(c, "K", 5.4, 1.4, 19, B("#0B0E0F"));
+                break;
             case "twitter":
                 Rr(c, 0, 0, 24, 24, 5, B("#000000"));
                 Pa(c, "M6.5,5.8 L17.5,18.2", null, white, 2.4);

@@ -68,6 +68,7 @@
             <StackPanel.RenderTransform>
               <TranslateTransform x:Name="CtlShift" X="10"/>
             </StackPanel.RenderTransform>
+            <Button x:Name="MuteBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="12" Content="&#xE767;" Click="Mute_Click"/>
             <Button x:Name="PrevBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE892;" Click="Prev_Click"/>
             <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Width="30" Height="26" FontSize="13" Content="&#xE768;" Click="Play_Click"/>
             <Button x:Name="NextBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE893;" Click="Next_Click"/>
@@ -75,6 +76,13 @@
         </Grid>
 
         <!-- Alt kenarda ince ilerleme çizgisi -->
+        <!-- Ses kaydırıcısı: ses düğmesinin üstüne gelince metnin üstünde yüzer -->
+        <Border x:Name="VolPop" Grid.ColumnSpan="3" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,122,0"
+                Width="104" Height="26" CornerRadius="13" Padding="10,0" Opacity="0" IsHitTestVisible="False">
+          <Slider x:Name="VolSlider" Minimum="0" Maximum="100" Style="{StaticResource FluentSlider}" VerticalAlignment="Center"
+                  ValueChanged="VolSlider_ValueChanged"/>
+        </Border>
+
         <!-- Tıkla / sürükle: şarkıda istediğin yere atla (görünen çizgi ince, tıklanabilir alan daha geniş) -->
         <Grid x:Name="SeekHit" Grid.ColumnSpan="3" Height="14" VerticalAlignment="Bottom" Margin="4,0,4,0"
               Background="Transparent" Cursor="Hand">

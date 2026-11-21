@@ -56,6 +56,11 @@ public static class L
         ["Yalnızca alttaki veya üstteki görev çubuğunu destekler. Çalan bir şey yokken ya da tam ekran uygulamada otomatik gizlenir. Beğenmezseniz yukarıdaki anahtarı kapatmanız yeterli."] =
             "Only a bottom or top taskbar is supported. It hides automatically when nothing is playing or in a fullscreen app. If you don't like it, just turn the switch above off.",
         ["Görev çubuğu modunu kapat"] = "Turn off taskbar mode",
+        ["Tarayıcı sekme başlığını göster"] = "Show the browser tab title",
+        ["Tarayıcıdan gelen yayın / videolarda (ör. Kick canlı yayını) medya bilgisi genel kalıyorsa ('Watch live' gibi), açık sekmenin başlığını (yayıncı / yayın adı) gösterir. Yalnızca o sekme en öndeyken okunabilir; sonra son okunan başlık korunur."] =
+            "For streams / videos from the browser (e.g. a Kick live stream) where the media info stays generic (like 'Watch live'), shows the open tab's title (streamer / stream name). It can only be read while that tab is in front; the last read title is kept afterwards.",
+        ["Ses %{0}"] = "Volume {0}%",
+        ["Sessiz"] = "Muted",
         ["Yalnızca görev çubuğunda göster"] = "Show only in the taskbar",
         ["Flyout hiçbir zaman ekranda açılmaz; yalnızca görev çubuğundaki kontrol görünür. Kontrole tıklamak oynat/duraklat yapar, kısayol (Alt+P) kontrolü geçici olarak gizler / geri getirir."] =
             "The flyout never opens on screen; only the taskbar control is shown. Clicking the control plays / pauses, and the hotkey (Alt+P) temporarily hides / restores it.",

@@ -56,6 +56,11 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - "Yalnızca görev çubuğunda göster": flyout hiç açılmaz, sadece görev çubuğu kontrolü görünür (gövdeye tıklamak hiçbir şey yapmaz,
   Alt+P = kontrolü geçici gizle / geri getir)
 
+- Tarayıcı sekme başlığı (Ayarlar > Platformlar): Kick gibi yayınlarda medya bilgisi genel kalıyorsa ("Watch live")
+  açık sekmenin başlığından yayıncı / yayın adını gösterir (varsayılan kapalı)
+- Görev çubuğu kontrolünde ses: ses düğmesinin üstüne gelince kaydırıcı açılır; tekerlek sesi değiştirir ve "Ses %45" gösterir
+- Ayarlarda ince modern kaydırma çubuğu ve yumuşak tekerlek kaydırması; sayfa geçişleri bitmap önbelleğiyle akıcıdır
+
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.

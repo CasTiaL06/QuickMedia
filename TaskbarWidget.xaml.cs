@@ -41,6 +41,12 @@ public partial class TaskbarWidget : Window
 
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(600) };
 
+    // ses
+    private bool _updatingVol;
+    private DateTime _toastUntil = DateTime.MinValue;
+    private readonly DispatcherTimer _popTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
+    private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromMilliseconds(1300) };
+
     // Z-sırası bekçisi: görev çubuğu öne geçerse kontrol neredeyse anında geri alınır
     private readonly DispatcherTimer _guard = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private DateTime _burstUntil = DateTime.MinValue;
@@ -111,9 +117,18 @@ public partial class TaskbarWidget : Window
         Hit.MouseWheel += (_, e) =>
         {
             if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) SeekBy(e.Delta > 0 ? 5 : -5);
-            else App.AdjustVolume(e.Delta > 0 ? 0.05f : -0.05f, nudge: false);
+            else { App.AdjustVolume(e.Delta > 0 ? 0.05f : -0.05f, nudge: false); ToastVolume(); }
         };
         Hit.MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
+
+        // Ses düğmesi: üstüne gelince kaydırıcı açılır, ayrılınca kısa gecikmeyle kapanır
+        _popTimer.Tick += (_, _) => { _popTimer.Stop(); if (!MuteBtn.IsMouseOver && !VolPop.IsMouseOver) ShowVolPop(false); };
+        _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); _toastUntil = DateTime.MinValue; RestoreSub(); };
+        MuteBtn.MouseEnter += (_, _) => { _popTimer.Stop(); ShowVolPop(true); };
+        MuteBtn.MouseLeave += (_, _) => _popTimer.Start();
+        VolPop.MouseEnter += (_, _) => _popTimer.Stop();
+        VolPop.MouseLeave += (_, _) => _popTimer.Start();
+        Hit.MouseLeave += (_, _) => ShowVolPop(false);
 
         SeekHit.MouseEnter += (_, _) => SetSeekHover(true);
         SeekHit.MouseLeave += (_, _) => { if (!_seeking) SetSeekHover(false); };
@@ -197,6 +212,7 @@ public partial class TaskbarWidget : Window
             SlideIn();
             Place(rc, area.Value.X, area.Value.W, sx, sy);
             UpdateProgress();
+            SyncVolume();
             UpdateEq(App.Displayed.IsPlaying);
         }
         catch (Exception ex) { Log.Write("Görev çubuğu kontrolü hatası: " + ex.Message); }
@@ -379,6 +395,63 @@ public partial class TaskbarWidget : Window
         SetupMarquee(SubClip, SubText, SubMove);
     }
 
+    // ================= Ses (yalnızca çalan uygulamanın sesi) =================
+
+    private void ShowVolPop(bool on)
+    {
+        VolPop.IsHitTestVisible = on;
+        VolPop.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, TimeSpan.FromMilliseconds(Anim ? 130 : 1)));
+    }
+
+    /// <summary>Kaydırıcıyı ve ses düğmesini çalan uygulamanın gerçek durumuyla eşitler.</summary>
+    private void SyncVolume()
+    {
+        var cur = App.Displayed;
+        var st = cur.HasSession ? AppVolume.GetState(cur.AppId) : null;
+        bool ok = st != null;
+        MuteBtn.IsEnabled = VolSlider.IsEnabled = ok;
+        MuteBtn.Opacity = ok ? 1 : 0.45;
+        if (!ok || VolSlider.IsMouseCaptureWithin) return;
+        _updatingVol = true;
+        VolSlider.Value = st!.Value.Muted ? 0 : st.Value.Volume * 100;
+        MuteBtn.Content = st.Value.Muted || st.Value.Volume <= 0.001f ? "\uE74F" : "\uE767";
+        _updatingVol = false;
+    }
+
+    private void VolSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_updatingVol) return;
+        var cur = App.Displayed;
+        if (!cur.HasSession) return;
+        if (e.NewValue > 0 && AppVolume.GetState(cur.AppId)?.Muted == true) AppVolume.SetMute(cur.AppId, false);
+        AppVolume.SetVolume(cur.AppId, (float)(e.NewValue / 100.0));
+        MuteBtn.Content = e.NewValue <= 0.1 ? "\uE74F" : "\uE767";
+    }
+
+    private void Mute_Click(object sender, RoutedEventArgs e)
+    {
+        var cur = App.Displayed;
+        if (!cur.HasSession) return;
+        var st = AppVolume.GetState(cur.AppId);
+        if (st != null) AppVolume.SetMute(cur.AppId, !st.Value.Muted);
+        SyncVolume();
+    }
+
+    /// <summary>Tekerlekle ses değişince alt satırda kısa süre "Ses %45" gösterir.</summary>
+    private void ToastVolume()
+    {
+        var cur = App.Displayed;
+        var st = cur.HasSession ? AppVolume.GetState(cur.AppId) : null;
+        if (st == null) return;
+        string text = st.Value.Muted ? L.T("Sessiz") : L.F("Ses %{0}", (int)Math.Round(st.Value.Volume * 100));
+        _toastUntil = DateTime.Now.AddMilliseconds(1300);
+        SubText.Text = text;
+        SetupMarquee(SubClip, SubText, SubMove);
+        _toastTimer.Stop();
+        _toastTimer.Start();
+        SyncVolume();
+    }
+
     // ================= İlerleme çizgisi: göster, tıkla / sürükle ile atla =================
 
     private static string Fmt(double sec) => $"{(int)(sec / 60)}:{(int)(sec % 60):00}";
@@ -493,7 +566,8 @@ public partial class TaskbarWidget : Window
         TitleText.Foreground = new SolidColorBrush(main);
         SubText.Foreground = new SolidColorBrush(sub);
         PausedGlyph.Foreground = new SolidColorBrush(main);
-        foreach (var b in new[] { PrevBtn, PlayBtn, NextBtn }) b.Foreground = new SolidColorBrush(main);
+        foreach (var b in new[] { MuteBtn, PrevBtn, PlayBtn, NextBtn }) b.Foreground = new SolidColorBrush(main);
+        VolPop.Background = new SolidColorBrush(_light ? Color.FromArgb(0xEE, 0xF1, 0xF3, 0xF5) : Color.FromArgb(0xEE, 0x25, 0x28, 0x2D));
 
         HoverBg.Background = new SolidColorBrush(_light ? Color.FromArgb(0x16, 0, 0, 0) : Color.FromArgb(0x1C, 255, 255, 255));
         ProgressTrack.Background = new SolidColorBrush(_light ? Color.FromArgb(0x22, 0, 0, 0) : Color.FromArgb(0x30, 255, 255, 255));
@@ -511,7 +585,7 @@ public partial class TaskbarWidget : Window
         _trackKey = trackKey;
 
         TitleText.Text = m.Title;
-        if (!_seeking) SubText.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
+        if (!_seeking && DateTime.Now >= _toastUntil) SubText.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
         PlayBtn.Content = m.IsPlaying ? "\uE769" : "\uE768";
 
         if (m.Art != null)

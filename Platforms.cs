@@ -18,6 +18,7 @@ public static class Platforms
         new("primevideo",  "Prime Video",    "Web",            [],                                        ["Prime Video"],    ["primevideo.com"]),
         new("disney",      "Disney+",        "Web",            [],                                        ["Disney+"],        ["disneyplus.com"]),
         new("twitch",      "Twitch",         "Web",            [],                                        ["Twitch"],         ["twitch.tv"]),
+        new("kick",        "Kick",           "Web",            [],                                        [" - Kick", " | Kick", " – Kick", "Kick.com"], ["kick.com"]),
         new("twitter",     "X (Twitter)",    "Web",            [],                                        [" / X", "Twitter"], ["x.com", "twitter.com"]),
         new("facebook",    "Facebook",       "Web",            [],                                        ["Facebook"],       ["facebook.com", "fb.watch"]),
         new("instagram",   "Instagram",      "Web",            [],                                        ["Instagram"],      ["instagram.com"]),

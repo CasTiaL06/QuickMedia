@@ -41,6 +41,8 @@ public sealed class MediaService
         public MediaInfo Info = new();
         public DateTime LastActive = DateTime.MinValue;
         public int Version;
+        public string? TabTitle;      // tarayıcı sekmesinden okunan başlık (sabit tutulur)
+        public string? TabArtist;
         public TypedEventHandler<GlobalSystemMediaTransportControlsSession, MediaPropertiesChangedEventArgs>? OnProps;
         public TypedEventHandler<GlobalSystemMediaTransportControlsSession, PlaybackInfoChangedEventArgs>? OnPlay;
     }
@@ -49,6 +51,7 @@ public sealed class MediaService
     private readonly List<Tracker> _trackers = new();
     private GlobalSystemMediaTransportControlsSessionManager? _mgr;
     private GlobalSystemMediaTransportControlsSession? _picked;
+    private System.Threading.Timer? _tabTimer;
 
     /// <summary>Flyout'un göstereceği (gizli olmayan, en uygun) oturum; yoksa boş.</summary>
     public MediaInfo Current { get; private set; } = new();
@@ -59,6 +62,7 @@ public sealed class MediaService
         _mgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
         _mgr.SessionsChanged += (_, _) => Rebuild();
         Rebuild();
+        _tabTimer = new System.Threading.Timer(_ => RefreshTabTitles(), null, 3000, 3000);
     }
 
     // ---------- Oturum listesi ----------
@@ -159,6 +163,8 @@ public sealed class MediaService
             lock (_gate)
             {
                 if (!_trackers.Contains(t)) return;
+                bool newTrack = !(t.Info.HasSession && info.HasSession && t.Info.Title == info.Title && t.Info.Artist == info.Artist && t.Info.AppId == info.AppId);
+                if (newTrack) { t.TabTitle = null; t.TabArtist = null; }
                 if (info.HasSession && (playing || !t.Info.HasSession || t.Info.Title != info.Title)) t.LastActive = DateTime.Now;
                 t.Info = info;
             }
@@ -180,7 +186,44 @@ public sealed class MediaService
     }
 
     /// <summary>Ayarlar (Gizle / Hep göster) değişince seçimi yeniden yapar.</summary>
-    public void Repick() => Reevaluate();
+    public void Repick()
+    {
+        RefreshTabTitles();
+        Reevaluate();
+    }
+
+    /// <summary>"Sekme başlığını göster" açıksa ve sekmeden bir başlık okunduysa onu kullanır.</summary>
+    private static MediaInfo Effective(Tracker t)
+    {
+        var i = t.Info;
+        if (!App.Settings.UseTabTitle || t.TabTitle == null) return i;
+        return new MediaInfo
+        {
+            HasSession = true, Key = i.Key, Title = t.TabTitle, Artist = t.TabArtist ?? i.Artist, Album = i.Album,
+            AppId = i.AppId, PlatformId = i.PlatformId, IsPlaying = i.IsPlaying, Art = i.Art,
+        };
+    }
+
+    private void RefreshTabTitles()
+    {
+        try
+        {
+            if (!App.Settings.UseTabTitle) return;
+            bool changed = false;
+            lock (_gate)
+            {
+                foreach (var t in _trackers)
+                {
+                    var i = t.Info;
+                    if (!i.HasSession || !TabTitle.IsWeb(i)) continue;
+                    var (title, artist) = TabTitle.Resolve(i);
+                    if (title != null && title != t.TabTitle) { t.TabTitle = title; t.TabArtist = artist; changed = true; }
+                }
+            }
+            if (changed) Reevaluate();
+        }
+        catch { }
+    }
 
     private void Reevaluate()
     {
@@ -197,7 +240,7 @@ public sealed class MediaService
                 double sc = Score(t);
                 if (sc > bestScore) { best = t; bestScore = sc; }
             }
-            pick = best?.Info ?? new MediaInfo();
+            pick = best != null ? Effective(best) : new MediaInfo();
             _picked = best?.Session;
 
             var prev = Current;

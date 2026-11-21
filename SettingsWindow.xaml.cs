@@ -30,6 +30,7 @@ public partial class SettingsWindow : Window
     private CheckBox _track = null!, _play = null!, _fullscreen = null!, _paused = null!;
     private CheckBox _blur = null!, _anim = null!, _art = null!, _prog = null!, _ctrl = null!, _vol = null!, _badge = null!;
     private Slider _opacity = null!, _scale = null!;
+    private CheckBox _tabTitle = null!;
     private CheckBox _tbOn = null!, _tbSuppress = null!, _tbAuto = null!, _tbProgress = null!, _tbOnly = null!;
     private Slider _tbWidth = null!, _tbOffset = null!;
     private TextBlock _tbWidthText = null!, _tbOffsetText = null!;
@@ -221,7 +222,9 @@ public partial class SettingsWindow : Window
     {
         var sp = new StackPanel { Margin = new Thickness(44, 34, 44, 28), MaxWidth = 780, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var k in kids) sp.Children.Add(k);
-        return new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = sp };
+        var sv = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = sp };
+        SmoothScroll.Attach(sv);
+        return sv;
     }
 
     private Slider Sld(double min, double max)
@@ -356,11 +359,15 @@ public partial class SettingsWindow : Window
         _page = key;
         PageHost.Content = p;
         p.Opacity = 0;
-        var slide = new TranslateTransform(0, 14);
+        var slide = new TranslateTransform(0, 12);
         p.RenderTransform = slide;
+        // Geçiş sırasında sayfa tek bir bitmap olarak taşınır: çok öğeli sayfalar (Platformlar, Kısayollar) kasmaz
+        p.CacheMode = new BitmapCache();
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        p.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
-        slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(14, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(190));
+        fade.Completed += (_, _) => p.CacheMode = null;
+        p.BeginAnimation(OpacityProperty, fade);
+        slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
     }
 
     // ================= Sayfalar =================
@@ -381,6 +388,7 @@ public partial class SettingsWindow : Window
         _blur = Sw(); _anim = Sw();
         _art = Sw(); _prog = Sw(); _ctrl = Sw(); _vol = Sw(); _badge = Sw();
 
+        _tabTitle = Sw();
         _tbOn = Sw(); _tbSuppress = Sw(); _tbAuto = Sw(); _tbProgress = Sw(); _tbOnly = Sw();
         _tbWidth = Sld(160, 420); _tbWidthText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _tbOffset = Sld(0, 800); _tbOffsetText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -516,6 +524,7 @@ public partial class SettingsWindow : Window
         BuildPlatforms();
         return Page(
             PageHeader("Platformlar", "Her kaynak için ayrı davranış."),
+            Group(Row("Tarayıcı sekme başlığını göster", "Tarayıcıdan gelen yayın / videolarda (ör. Kick canlı yayını) medya bilgisi genel kalıyorsa ('Watch live' gibi), açık sekmenin başlığını (yayıncı / yayın adı) gösterir. Yalnızca o sekme en öndeyken okunabilir; sonra son okunan başlık korunur.", _tabTitle, "\uE774")),
             Note("Hep göster: medya varken sürekli açık kalır. Süreli: tetiklenince seçilen saniye kadar görünür. Gizle: bu kaynak flyout'ta hiç görünmez, bilgisi bile gösterilmez. Listede olmayan kaynaklar 'Diğer' kuralını kullanır."),
             _platformHost,
             Btn("Tümünü varsayılana döndür", (_, _) =>
@@ -800,6 +809,7 @@ public partial class SettingsWindow : Window
         _vol.IsChecked = s.ShowVolumeControls;
         _badge.IsChecked = s.ShowPlatformBadge;
 
+        _tabTitle.IsChecked = s.UseTabTitle;
         _tbOn.IsChecked = s.UseTaskbar;
         _tbSuppress.IsChecked = s.TaskbarSuppressFlyout;
         _tbAuto.IsChecked = s.TaskbarAuto;
@@ -850,6 +860,7 @@ public partial class SettingsWindow : Window
         s.ShowVolumeControls = _vol.IsChecked == true;
         s.ShowPlatformBadge = _badge.IsChecked == true;
 
+        s.UseTabTitle = _tabTitle.IsChecked == true;
         s.UseTaskbar = _tbOn.IsChecked == true;
         s.TaskbarSuppressFlyout = _tbSuppress.IsChecked == true;
         s.TaskbarAuto = _tbAuto.IsChecked == true;
@@ -1142,5 +1153,33 @@ public partial class SettingsWindow : Window
         App.Hotkey.RegisterAllFromSettings();
         UpdateHotkeyText();
         UpdateHotkeyStatus(null);
+    }
+}
+
+
+/// <summary>Fare tekerleğiyle yumuşak (animasyonlu) dikey kaydırma.</summary>
+internal static class SmoothScroll
+{
+    public static readonly DependencyProperty OffsetProperty = DependencyProperty.RegisterAttached(
+        "Offset", typeof(double), typeof(SmoothScroll),
+        new PropertyMetadata(0.0, (d, e) => { if (d is ScrollViewer sv) sv.ScrollToVerticalOffset((double)e.NewValue); }));
+
+    public static void Attach(ScrollViewer sv)
+    {
+        double target = 0;
+        DateTime until = DateTime.MinValue;
+        sv.PreviewMouseWheel += (_, e) =>
+        {
+            if (sv.ScrollableHeight <= 0) return;
+            e.Handled = true;
+            double basis = DateTime.Now < until ? target : sv.VerticalOffset;   // animasyon sürerken hedeften devam et
+            target = Math.Clamp(basis - e.Delta * 0.8, 0, sv.ScrollableHeight);
+            until = DateTime.Now.AddMilliseconds(280);
+            var a = new DoubleAnimation(sv.VerticalOffset, target, TimeSpan.FromMilliseconds(260))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            sv.BeginAnimation(OffsetProperty, a);
+        };
     }
 }
