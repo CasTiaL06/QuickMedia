@@ -254,6 +254,10 @@ public partial class TaskbarWidget : Window
         });
     }
 
+    private bool _embedded, _embedFailed;
+    private IntPtr _embedParent;
+    private int _embedChecks;
+
     private void Place(Native.RECT rc, int x, int wpx, double sx, double sy)
     {
         int tbH = rc.bottom - rc.top;
@@ -265,9 +269,23 @@ public partial class TaskbarWidget : Window
         if (Math.Abs(Width - wDip) > 0.5) Width = wDip;
         if (Math.Abs(Height - hDip) > 0.5) Height = hDip;
 
-        // Yalnızca konum değiştiyse ya da görev çubuğunun arkasında kaldıysa öne al; sık çağrı titreşim yapar
+        // Gömülü mod: kontrol görev çubuğunun alt penceresi olur. Başlat menüsü / arama açılınca Windows görev çubuğunu
+        // daha üst bir katmana alır; "üstte duran" pencereler arkada kalıp kaybolur, gömülü olan ise görev çubuğuyla birlikte kalır.
+        bool wantEmbed = App.Settings.TaskbarEmbed && !_embedFailed;
+        var tb = Native.FindTaskbarWindow();
+        if (wantEmbed && tb != IntPtr.Zero)
+        {
+            if (!_embedded || _embedParent != tb) TryEmbed(tb);
+        }
+        else if (_embedded) Unembed();
+
         var r = (x, y, wpx, hpx);
-        if (r != _lastRect)
+        if (_embedded)
+        {
+            if (r != _lastRect) { Native.PlaceChild(_hwnd, x - rc.left, y - rc.top, wpx, hpx); _lastRect = r; }
+            VerifyEmbed(x + wpx / 2, y + hpx / 2);
+        }
+        else if (r != _lastRect)
         {
             Native.PlaceTopmost(_hwnd, x, y, wpx, hpx);
             _lastRect = r;
@@ -275,10 +293,63 @@ public partial class TaskbarWidget : Window
         _rectDip = new Rect(x / sx, y / sy, wDip, hDip);
     }
 
-    /// <summary>Kontrol görev çubuğunun arkasında kaldıysa (yalnızca o zaman) yeniden öne alır.</summary>
+    private void TryEmbed(IntPtr tb)
+    {
+        try
+        {
+            _embedded = Native.Embed(_hwnd, tb);
+            _embedParent = tb;
+            _lastRect = default;
+            _embedChecks = _embedded ? 4 : 0;
+            if (_embedded) Log.Write("Görev çubuğu kontrolü görev çubuğuna gömüldü");
+            else
+            {
+                _embedFailed = true;
+                Native.Unembed(_hwnd);
+                Log.Write("Görev çubuğuna gömme başarısız oldu; üstte yöntemi kullanılıyor");
+            }
+        }
+        catch (Exception ex)
+        {
+            _embedded = false;
+            _embedFailed = true;
+            Log.Write("Gömme hatası: " + ex.Message);
+        }
+    }
+
+    private void Unembed()
+    {
+        try { Native.Unembed(_hwnd); } catch { }
+        _embedded = false;
+        _embedParent = IntPtr.Zero;
+        _lastRect = default;
+    }
+
+    /// <summary>Gömme sonrası ilk birkaç turda kontrolün gerçekten görünür olduğunu doğrular; değilse eski yönteme döner.</summary>
+    private void VerifyEmbed(int cx, int cy)
+    {
+        if (_embedChecks <= 0 || !IsVisible) return;
+        _embedChecks--;
+        if (Native.WindowAt(cx, cy) == _hwnd) { _embedChecks = 0; return; }
+        Native.RaiseChild(_hwnd);
+        if (Native.WindowAt(cx, cy) == _hwnd) { _embedChecks = 0; return; }
+        if (_embedChecks == 0)
+        {
+            _embedFailed = true;
+            Unembed();
+            Log.Write("Gömülü kontrol görünmedi; üstte yöntemine dönüldü");
+        }
+    }
+
+    /// <summary>Kontrol arkada kaldıysa (yalnızca o zaman) yeniden öne alır.</summary>
     private void EnsureOnTop()
     {
-        if (!_shown || _hwnd == IntPtr.Zero || _lastRect.Item3 == 0) return;   // henüz yerleştirilmediyse yapma
+        if (!_shown || _hwnd == IntPtr.Zero || _lastRect.Item3 == 0) return;
+        if (_embedded)
+        {
+            if (!Native.IsTopChild(_hwnd)) Native.RaiseChild(_hwnd);   // görev çubuğunun XAML katmanı öne geçtiyse geri al
+            return;
+        }
         if (Native.IsAboveTaskbar(_hwnd)) return;
         var (x, y, w, h) = _lastRect;
         Native.PlaceTopmost(_hwnd, x, y, w, h);

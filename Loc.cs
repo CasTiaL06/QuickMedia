@@ -65,6 +65,9 @@ public static class L
         ["Flyout hiçbir zaman ekranda açılmaz; yalnızca görev çubuğundaki kontrol görünür. Kontrole tıklamak oynat/duraklat yapar, kısayol (Alt+P) kontrolü geçici olarak gizler / geri getirir."] =
             "The flyout never opens on screen; only the taskbar control is shown. Clicking the control plays / pauses, and the hotkey (Alt+P) temporarily hides / restores it.",
         ["Geçici olarak gizle ({0} ile geri gelir)"] = "Hide for now (comes back with {0})",
+        ["Görev çubuğunun içine göm"] = "Embed in the taskbar",
+        ["Kontrolü görev çubuğunun bir parçası yapar; Başlat menüsü (Windows tuşu) ya da arama açılınca kaybolmaz. Görünmez kalırsa ya da sorun çıkarırsa kapatın; kendisi de otomatik olarak eski yönteme döner."] =
+            "Makes the control part of the taskbar so it doesn't disappear when the Start menu (Windows key) or search opens. If it stays invisible or causes trouble, turn it off; it also falls back to the old method automatically.",
         ["Boş alanı otomatik bul"] = "Find the free space automatically",
         ["Görev çubuğundaki düğmelerin yerini okuyup kontrolü sol taraftaki boş alana kendisi sığdırır (Widgets düğmesi varsa onun sağına). Kapalıyken aşağıdaki 'Soldan boşluk' kullanılır."] =
             "Reads the positions of the taskbar buttons and fits the control into the free area on the left by itself (to the right of the Widgets button if present). When off, the 'Left offset' below is used.",

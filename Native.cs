@@ -88,6 +88,36 @@ internal static class Native
     internal static IntPtr HookForeground(WinEventDelegate cb) => SetWinEventHook(0x0003 /*EVENT_SYSTEM_FOREGROUND*/, 0x0003, IntPtr.Zero, cb, 0, 0, 0 /*OUTOFCONTEXT*/);
     internal static void Unhook(IntPtr hook) { if (hook != IntPtr.Zero) UnhookWinEvent(hook); }
 
+    // ---- Görev çubuğuna gömme (Başlat menüsü açılınca kontrol kaybolmasın) ----
+    [DllImport("user32.dll")] private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+    [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr hwnd);
+    [StructLayout(LayoutKind.Sequential)] private struct POINT { public int x, y; }
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(POINT p);
+
+    /// <summary>Pencereyi görev çubuğunun alt penceresi yapar. Önce WS_CHILD stili, sonra SetParent (Windows belgelerindeki sıra).</summary>
+    internal static bool Embed(IntPtr hwnd, IntPtr parent)
+    {
+        int style = GetWindowLong(hwnd, -16);
+        style = (style & ~unchecked((int)0x80000000)) | 0x40000000;   // WS_POPUP kaldır, WS_CHILD ekle
+        SetWindowLong(hwnd, -16, style);
+        SetParent(hwnd, parent);
+        return GetParent(hwnd) == parent;     // SetParent önceki üst pencereyi döndürür; başarıyı buradan anlarız
+    }
+
+    internal static void Unembed(IntPtr hwnd)
+    {
+        SetParent(hwnd, IntPtr.Zero);
+        int style = GetWindowLong(hwnd, -16);
+        style = (style & ~0x40000000) | unchecked((int)0x80000000);   // WS_CHILD kaldır, WS_POPUP ekle
+        SetWindowLong(hwnd, -16, style);
+    }
+
+    /// <summary>Alt pencereyi (üst pencereye göre) konumlar ve kardeşlerinin en üstüne alır.</summary>
+    internal static void PlaceChild(IntPtr hwnd, int x, int y, int w, int h) => SetWindowPos(hwnd, IntPtr.Zero, x, y, w, h, 0x0010 | 0x0040); // NOACTIVATE | SHOWWINDOW
+    internal static bool IsTopChild(IntPtr hwnd) => GetWindow(hwnd, 3 /*GW_HWNDPREV*/) == IntPtr.Zero;
+    internal static void RaiseChild(IntPtr hwnd) => SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
+    internal static IntPtr WindowAt(int x, int y) => WindowFromPoint(new POINT { x = x, y = y });
+
     internal static IntPtr FindTaskbarWindow() => FindWindow("Shell_TrayWnd", null);
 
     /// <summary>Pencere görev çubuğunun z-sırasında üstünde mi? (Değilse yeniden öne alınmalı; her seferinde almak titreşim yapar.)</summary>

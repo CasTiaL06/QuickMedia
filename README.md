@@ -61,6 +61,9 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Görev çubuğu kontrolünde ses: ses düğmesinin üstüne gelince kaydırıcı açılır; tekerlek sesi değiştirir ve "Ses %45" gösterir
 - Ayarlarda ince modern kaydırma çubuğu ve yumuşak tekerlek kaydırması; sayfa geçişleri bitmap önbelleğiyle akıcıdır
 
+- Görev çubuğu kontrolü varsayılan olarak görev çubuğunun içine gömülür: Başlat menüsü (Windows tuşu) açılınca kaybolmaz.
+  Gömme çalışmazsa kontrol kendiliğinden "üstte" yöntemine döner (Ayarlar > Görev çubuğu > "Görev çubuğunun içine göm")
+
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.

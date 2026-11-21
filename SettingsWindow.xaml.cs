@@ -30,7 +30,7 @@ public partial class SettingsWindow : Window
     private CheckBox _track = null!, _play = null!, _fullscreen = null!, _paused = null!;
     private CheckBox _blur = null!, _anim = null!, _art = null!, _prog = null!, _ctrl = null!, _vol = null!, _badge = null!;
     private Slider _opacity = null!, _scale = null!;
-    private CheckBox _tabTitle = null!;
+    private CheckBox _tabTitle = null!, _tbEmbed = null!;
     private CheckBox _tbOn = null!, _tbSuppress = null!, _tbAuto = null!, _tbProgress = null!, _tbOnly = null!;
     private Slider _tbWidth = null!, _tbOffset = null!;
     private TextBlock _tbWidthText = null!, _tbOffsetText = null!;
@@ -388,7 +388,7 @@ public partial class SettingsWindow : Window
         _blur = Sw(); _anim = Sw();
         _art = Sw(); _prog = Sw(); _ctrl = Sw(); _vol = Sw(); _badge = Sw();
 
-        _tabTitle = Sw();
+        _tabTitle = Sw(); _tbEmbed = Sw();
         _tbOn = Sw(); _tbSuppress = Sw(); _tbAuto = Sw(); _tbProgress = Sw(); _tbOnly = Sw();
         _tbWidth = Sld(160, 420); _tbWidthText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _tbOffset = Sld(0, 800); _tbOffsetText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -512,6 +512,7 @@ public partial class SettingsWindow : Window
         Group(
             Row("Görev çubuğunda kullan", "Çalan şarkıyı görev çubuğunun sol tarafında küçük bir kontrol olarak gösterir. Tıklayınca flyout açılır, fare tekerleği çalan uygulamanın sesini değiştirir, sağ tık menü açar.", _tbOn, "\uE7C4"),
             Row("Yalnızca görev çubuğunda göster", "Flyout hiçbir zaman ekranda açılmaz; yalnızca görev çubuğundaki kontrol görünür. Kontrole tıklamak oynat/duraklat yapar, kısayol (Alt+P) kontrolü geçici olarak gizler / geri getirir.", _tbOnly, "\uE7C4"),
+            Row("Görev çubuğunun içine göm", "Kontrolü görev çubuğunun bir parçası yapar; Başlat menüsü (Windows tuşu) ya da arama açılınca kaybolmaz. Görünmez kalırsa ya da sorun çıkarırsa kapatın; kendisi de otomatik olarak eski yönteme döner.", _tbEmbed, "\uE7C4"),
             Row("Boş alanı otomatik bul", "Görev çubuğundaki düğmelerin yerini okuyup kontrolü sol taraftaki boş alana kendisi sığdırır (Widgets düğmesi varsa onun sağına). Kapalıyken aşağıdaki 'Soldan boşluk' kullanılır.", _tbAuto, "\uE7C4"),
             Row("İlerleme çizgisi", "Kontrolün altında şarkının ilerlemesini gösteren ince çizgi. Çizgiye tıklayıp sürükleyerek şarkıda istediğiniz yere atlayabilirsiniz; Shift + fare tekerleği 5 sn ileri / geri sarar.", _tbProgress, "\uE713"),
             Row("Genişlik", "Kontrolün en fazla genişliği (otomatik modda boş alana sığacak şekilde kısalır).", new StackPanel { Orientation = Orientation.Horizontal, Children = { _tbWidth, _tbWidthText } }, "\uE71E"),
@@ -810,6 +811,7 @@ public partial class SettingsWindow : Window
         _badge.IsChecked = s.ShowPlatformBadge;
 
         _tabTitle.IsChecked = s.UseTabTitle;
+        _tbEmbed.IsChecked = s.TaskbarEmbed;
         _tbOn.IsChecked = s.UseTaskbar;
         _tbSuppress.IsChecked = s.TaskbarSuppressFlyout;
         _tbAuto.IsChecked = s.TaskbarAuto;
@@ -861,6 +863,7 @@ public partial class SettingsWindow : Window
         s.ShowPlatformBadge = _badge.IsChecked == true;
 
         s.UseTabTitle = _tabTitle.IsChecked == true;
+        s.TaskbarEmbed = _tbEmbed.IsChecked == true;
         s.UseTaskbar = _tbOn.IsChecked == true;
         s.TaskbarSuppressFlyout = _tbSuppress.IsChecked == true;
         s.TaskbarAuto = _tbAuto.IsChecked == true;

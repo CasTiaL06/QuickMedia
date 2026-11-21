@@ -41,6 +41,7 @@ public sealed class AppSettings
     public bool TaskbarSuppressFlyout { get; set; }
     public bool UseTabTitle { get; set; }                // tarayıcı sekme başlığını göster (genel kalan yayın bilgileri için)
     public bool TaskbarOnly { get; set; }                // flyout hiç açılmaz, yalnızca görev çubuğu kontrolü görünür
+    public bool TaskbarEmbed { get; set; } = true;       // görev çubuğunun içine göm (üstte yerine)
     public bool TaskbarAuto { get; set; } = true;        // boş alanı otomatik bul
     public bool TaskbarProgress { get; set; } = true;    // alttaki ince ilerleme çizgisi
     public bool StartWithWindows { get; set; }
