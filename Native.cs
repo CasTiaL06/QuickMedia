@@ -177,8 +177,24 @@ internal static class Native
         if (rgn != IntPtr.Zero) DeleteObject(rgn);
     }
 
-    /// <summary>Tam ekran uygulama / oyun / sunum çalışıyor mu?</summary>
-    public static bool IsFullscreenBusy()
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(long pt, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr h, StringBuilder sb, int max);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr mon, ref MONITORINFO mi);
+
+    /// <summary>Windows'un "tam ekran uygulama" bildirimi (oyun, sunum...). Tarayıcı tam ekran videosunu her zaman yakalamaz.</summary>
+    public static bool IsNotificationBusy()
     {
         try
         {
@@ -187,6 +203,41 @@ internal static class Native
         }
         catch { return false; }
     }
+
+    /// <summary>
+    /// Ön plandaki pencere ana monitörün tamamını kaplıyor mu? Tarayıcıda (YouTube vb.) tam ekran video,
+    /// F11 ve çerçevesiz oyunlar bu şekilde yakalanır. Masaüstü / görev çubuğu / kendi pencerelerimiz sayılmaz.
+    /// </summary>
+    public static bool ForegroundCoversMonitor()
+    {
+        try
+        {
+            var h = GetForegroundWindow();
+            if (h == IntPtr.Zero) return false;
+
+            GetWindowThreadProcessId(h, out uint pid);
+            if (pid == (uint)Environment.ProcessId) return false;
+
+            var sb = new StringBuilder(64);
+            GetClassName(h, sb, sb.Capacity);
+            string cls = sb.ToString();
+            if (cls is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return false;
+
+            if (!GetWindowRect(h, out var r)) return false;
+            var mon = MonitorFromWindow(h, 2 /*MONITOR_DEFAULTTONEAREST*/);
+            var primary = MonitorFromPoint(0, 1 /*MONITOR_DEFAULTTOPRIMARY*/);
+            if (mon != primary) return false;   // görev çubuğu ana monitörde: başka ekrandaki tam ekran onu ilgilendirmez
+
+            var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (!GetMonitorInfo(mon, ref mi)) return false;
+            var m = mi.rcMonitor;
+            return r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Tam ekran uygulama / oyun / sunum / tam ekran video çalışıyor mu?</summary>
+    public static bool IsFullscreenBusy() => IsNotificationBusy() || ForegroundCoversMonitor();
 
     private static readonly HashSet<string> Browsers = new()
     {

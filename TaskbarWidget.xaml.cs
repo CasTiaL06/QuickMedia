@@ -184,8 +184,12 @@ public partial class TaskbarWidget : Window
             if (!s.UseTaskbar || UserHidden) { _miss = 0; SlideOut(); return; }
 
             bool media = FlyoutController.HasDisplayable(App.Media.Current);
-            bool fs = s.HideInFullscreen && Native.IsFullscreenBusy();
-            _fsCount = fs ? _fsCount + 1 : 0;
+            // Tam ekran: pencere tabanlı algılama (tarayıcıda tam ekran video dahil) güvenilir; anında gizle.
+            // Windows'un "meşgul" bildirimi bazen anlık takılır: onu birkaç tur üst üste görmeden gizleme.
+            bool strong = s.HideInFullscreen && Native.ForegroundCoversMonitor();
+            bool weak = s.HideInFullscreen && Native.IsNotificationBusy();
+            _fsCount = weak ? _fsCount + 1 : 0;
+            if (strong) { _miss = 0; SlideOut(); return; }
 
             Native.RECT rc = default;
             bool tbOk = Native.GetTaskbar(out rc, out uint edge) && (edge == 1 || edge == 3);
