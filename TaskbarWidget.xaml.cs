@@ -29,6 +29,7 @@ public partial class TaskbarWidget : Window
     private double _lastDur;
     private string _key = "";
     private string _trackKey = "";
+    private bool? _lastPlaying;
     private DateTime _themeStamp = DateTime.MinValue;
     private DateTime _seekHold = DateTime.MinValue;
     private (int, int, int, int) _lastRect;
@@ -662,6 +663,14 @@ public partial class TaskbarWidget : Window
         TitleText.Text = m.Title;
         if (!_seeking && DateTime.Now >= _toastUntil) SubText.Text = string.IsNullOrEmpty(m.Artist) ? m.Album : m.Artist;
         PlayBtn.Content = m.IsPlaying ? "\uE769" : "\uE768";
+        if (_lastPlaying != null && _lastPlaying != m.IsPlaying && _shown && Anim)
+        {
+            // oynat / duraklat değişince düğme küçük bir "pop" yapar
+            var pop = new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(300)) { EasingFunction = new BackEase { Amplitude = 0.9, EasingMode = EasingMode.EaseOut } };
+            PlayPop.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+            PlayPop.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+        }
+        _lastPlaying = m.IsPlaying;
 
         if (m.Art != null)
         {

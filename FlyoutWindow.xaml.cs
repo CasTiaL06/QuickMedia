@@ -52,6 +52,10 @@ public partial class FlyoutWindow : Window
     private ImageSource? _lastArt;
     private double _artW = 64;
     private bool _eqOn;
+    private string? _lastStyle;
+    private bool? _lastPlaying;
+    private bool _pulseOn;
+    private DropShadowEffect? _pulseEffect;
 
     public FlyoutWindow()
     {
@@ -75,7 +79,8 @@ public partial class FlyoutWindow : Window
 
         Card.MouseLeftButtonDown += Card_MouseLeftButtonDown;
         Card.MouseRightButtonUp += (_, e) => { App.CycleStyle(); e.Handled = true; }; // sağ tık: sıradaki stil
-        Card.MouseEnter += (_, _) => SetExpanded(true);
+        Card.MouseEnter += (_, _) => { SetExpanded(true); LiftShadow(true); };
+        Card.MouseLeave += (_, _) => LiftShadow(false);
         Card.MouseLeave += (_, _) => SetExpanded(false);
         Root.MouseEnter += (_, _) => UpdatePin();
         Root.MouseLeave += (_, _) => UpdatePin();
@@ -112,7 +117,13 @@ public partial class FlyoutWindow : Window
         NextBtn.ToolTip = L.T("Sonraki");
     }
 
-    private void Pin_Click(object sender, RoutedEventArgs e) => App.Flyout.SetPinned(!App.Settings.Pinned);
+    private void Pin_Click(object sender, RoutedEventArgs e)
+    {
+        App.Flyout.SetPinned(!App.Settings.Pinned);
+        if (App.Settings.Animations)   // iğne yaylanarak yerine oturur
+            PinRot.BeginAnimation(RotateTransform.AngleProperty,
+                new DoubleAnimation(-42, 0, TimeSpan.FromMilliseconds(520)) { EasingFunction = new ElasticEase { Oscillations = 2, Springiness = 4, EasingMode = EasingMode.EaseOut } });
+    }
 
     // ================= Yerleşim (stiller) =================
 
@@ -156,6 +167,56 @@ public partial class FlyoutWindow : Window
         var c = (Application.Current.Resources["BorderBrushC"] as SolidColorBrush)?.Color ?? Colors.Gray;
         var bottom = Color.FromArgb((byte)(c.A * 0.35), c.R, c.G, c.B);
         return new LinearGradientBrush(c, bottom, 90);
+    }
+
+    /// <summary>Kartın üstüne gelince gölge hafifçe büyür (havalanma hissi).</summary>
+    private void LiftShadow(bool on)
+    {
+        if (!App.Settings.Animations || !ReferenceEquals(Card.Effect, _cardShadow)) return;
+        var d = TimeSpan.FromMilliseconds(180);
+        _cardShadow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(on ? 34 : 22, d));
+        _cardShadow.BeginAnimation(DropShadowEffect.ShadowDepthProperty, new DoubleAnimation(on ? 6 : 3, d));
+    }
+
+    /// <summary>Stil değişince içerik küçükten yaylanarak yerine gelir.</summary>
+    private void StyleTransition()
+    {
+        if (!_shown || !App.Settings.Animations) return;
+        var back = new BackEase { Amplitude = 0.6, EasingMode = EasingMode.EaseOut };
+        var grow = new DoubleAnimation(0.9, 1, TimeSpan.FromMilliseconds(340)) { EasingFunction = back };
+        BodyPop.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        BodyPop.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        Body.BeginAnimation(OpacityProperty, new DoubleAnimation(0.1, 1, TimeSpan.FromMilliseconds(240)));
+    }
+
+    /// <summary>Oynat / duraklat değişince düğme küçük bir "pop" yapar.</summary>
+    private void PopPlay()
+    {
+        if (!_shown || !App.Settings.Animations) return;
+        var a = new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(300)) { EasingFunction = new BackEase { Amplitude = 0.9, EasingMode = EasingMode.EaseOut } };
+        PlayPop.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        PlayPop.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+    }
+
+    /// <summary>Çalarken yuvarlak oynat düğmesinin vurgu parıltısı nefes alır.</summary>
+    private void UpdatePulse()
+    {
+        var ef = PlayBtn.Effect as DropShadowEffect;
+        if (ef == null) { _pulseOn = false; _pulseEffect = null; return; }
+        bool on = _shown && App.Settings.Animations && Cur.IsPlaying;
+        if (on == _pulseOn && ReferenceEquals(ef, _pulseEffect)) return;
+        _pulseOn = on;
+        _pulseEffect = ef;
+        if (on)
+        {
+            ef.BeginAnimation(DropShadowEffect.OpacityProperty,
+                new DoubleAnimation(0.2, 0.75, TimeSpan.FromMilliseconds(950)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+        }
+        else
+        {
+            ef.BeginAnimation(DropShadowEffect.OpacityProperty, null);
+            ef.Opacity = 0.5;
+        }
     }
 
     private static void FadeIn(UIElement e, int ms = 260, double start = 0)
@@ -481,6 +542,9 @@ public partial class FlyoutWindow : Window
         Update(Cur);
         UpdateSpin();
         UpdatePin();
+        if (_lastStyle != null && _lastStyle != st) StyleTransition();
+        _lastStyle = st;
+        UpdatePulse();
     }
 
     // ================= İçerik =================
@@ -509,6 +573,9 @@ public partial class FlyoutWindow : Window
         }
         V(BadgeBorder, _showBadge && has && s.ShowPlatformBadge);
         PlayBtn.Content = i.IsPlaying ? "\uE769" : "\uE768";
+        if (_lastPlaying != null && _lastPlaying != i.IsPlaying) PopPlay();
+        _lastPlaying = i.IsPlaying;
+        UpdatePulse();
 
         if (i.Art != null)
         {
@@ -697,6 +764,7 @@ public partial class FlyoutWindow : Window
         UpdateSpin();
         UpdatePin();
         UpdateEq(Cur.IsPlaying);
+        UpdatePulse();
         Native.KeepOnTop(_hwnd);
         _tick.Start();
         Animate(true);
@@ -711,6 +779,7 @@ public partial class FlyoutWindow : Window
         AnchorDip = null;
         UpdateSpin();
         UpdateEq(false);
+        UpdatePulse();
         Animate(false);
     }
 
@@ -725,6 +794,9 @@ public partial class FlyoutWindow : Window
             BeginAnimation(OpacityProperty, null);
             Shift.BeginAnimation(TranslateTransform.YProperty, null);
             Shift.Y = 0;
+            Pop.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            Pop.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            Pop.ScaleX = Pop.ScaleY = 1;
             Opacity = show ? 1 : 0;
             if (!show) Hide();
             return;
@@ -740,6 +812,14 @@ public partial class FlyoutWindow : Window
 
         var slide = new DoubleAnimation(show ? 14 * dir : 0, show ? 0 : 10 * dir, d) { EasingFunction = ease };
         Shift.BeginAnimation(TranslateTransform.YProperty, slide);
+
+        // açılırken hafif yaylanan büyüme, kapanırken küçülme
+        var pop = new DoubleAnimation(show ? 0.93 : 1, show ? 1 : 0.97, TimeSpan.FromMilliseconds(show ? 300 : 140))
+        {
+            EasingFunction = show ? new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut } : ease
+        };
+        Pop.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+        Pop.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
     }
 
     public void Reposition()

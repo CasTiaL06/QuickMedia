@@ -10,7 +10,10 @@
 
   <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
     <Grid.RenderTransform>
-      <TranslateTransform x:Name="Shift"/>
+      <TransformGroup>
+        <ScaleTransform x:Name="Pop" ScaleX="1" ScaleY="1"/>
+        <TranslateTransform x:Name="Shift"/>
+      </TransformGroup>
     </Grid.RenderTransform>
 
     <Border x:Name="Card" Margin="18" Width="380" Padding="14" CornerRadius="12"
@@ -18,7 +21,10 @@
             BorderBrush="{DynamicResource BorderBrushC}" BorderThickness="1">
 
       <!-- Yerleşim ApplyLayout() ile stile göre kodda belirlenir -->
-      <Grid x:Name="Body">
+      <Grid x:Name="Body" RenderTransformOrigin="0.5,0.5">
+        <Grid.RenderTransform>
+          <ScaleTransform x:Name="BodyPop" ScaleX="1" ScaleY="1"/>
+        </Grid.RenderTransform>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
@@ -129,7 +135,7 @@
 
         <StackPanel x:Name="ControlsPanel" Orientation="Horizontal">
           <Button x:Name="PrevBtn" Style="{StaticResource IconButton}" Content="&#xE892;" ToolTip="Önceki" Click="Prev_Click"/>
-          <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Content="&#xE768;" ToolTip="Oynat / Duraklat" Click="Play_Click"/>
+          <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Content="&#xE768;" ToolTip="Oynat / Duraklat" Click="Play_Click" RenderTransformOrigin="0.5,0.5"><Button.RenderTransform><ScaleTransform x:Name="PlayPop" ScaleX="1" ScaleY="1"/></Button.RenderTransform></Button>
           <Button x:Name="NextBtn" Style="{StaticResource IconButton}" Content="&#xE893;" ToolTip="Sonraki" Click="Next_Click"/>
         </StackPanel>
       </Grid>
@@ -138,6 +144,6 @@
     <!-- Kartın sağ üst köşesinde küçük sabitleme düğmesi (üstüne gelince görünür) -->
     <Button x:Name="PinBtn" Style="{StaticResource PinButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
             Margin="0,7,7,0" Content="&#xE718;" ToolTip="Üstte sabitle" Opacity="0" IsHitTestVisible="False"
-            Click="Pin_Click"/>
+            Click="Pin_Click" RenderTransformOrigin="0.5,0.5"><Button.RenderTransform><RotateTransform x:Name="PinRot"/></Button.RenderTransform></Button>
   </Grid>
 </Window>

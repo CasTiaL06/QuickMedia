@@ -70,7 +70,7 @@
             </StackPanel.RenderTransform>
             <Button x:Name="MuteBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="12" Content="&#xE767;" Click="Mute_Click"/>
             <Button x:Name="PrevBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE892;" Click="Prev_Click"/>
-            <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Width="30" Height="26" FontSize="13" Content="&#xE768;" Click="Play_Click"/>
+            <Button x:Name="PlayBtn" Style="{StaticResource IconButton}" Width="30" Height="26" FontSize="13" Content="&#xE768;" Click="Play_Click" RenderTransformOrigin="0.5,0.5"><Button.RenderTransform><ScaleTransform x:Name="PlayPop" ScaleX="1" ScaleY="1"/></Button.RenderTransform></Button>
             <Button x:Name="NextBtn" Style="{StaticResource IconButton}" Width="26" Height="26" FontSize="11" Content="&#xE893;" Click="Next_Click"/>
           </StackPanel>
         </Grid>

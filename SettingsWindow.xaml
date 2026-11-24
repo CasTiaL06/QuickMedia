@@ -22,7 +22,18 @@
           </StackPanel>
         </StackPanel>
         <StackPanel x:Name="FooterHost" DockPanel.Dock="Bottom"/>
-        <StackPanel x:Name="NavHost"/>
+        <Grid x:Name="NavGrid">
+          <!-- Seçili sayfayı gösteren, sayfa değişince kayan hap -->
+          <Border x:Name="NavPill" Height="38" VerticalAlignment="Top" CornerRadius="6"
+                  Background="{DynamicResource AccentSoftBrush}">
+            <Border.RenderTransform>
+              <TranslateTransform x:Name="NavPillMove"/>
+            </Border.RenderTransform>
+            <Border Width="3" Height="16" CornerRadius="2" HorizontalAlignment="Left" Margin="0"
+                    Background="{DynamicResource AccentBrush}"/>
+          </Border>
+          <StackPanel x:Name="NavHost"/>
+        </Grid>
       </DockPanel>
     </Border>
 

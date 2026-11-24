@@ -69,6 +69,7 @@ public partial class SettingsWindow : Window
         Step("Alt bilgi", BuildFooter);
         Step("Yükleme", Load);
         Step("Sayfa", () => ShowPage(_page));
+        Dispatcher.InvokeAsync(() => MovePill(NavHost.Children.OfType<RadioButton>().FirstOrDefault(r => (string?)r.Tag == _page), false), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private static void Step(string name, Action a)
@@ -261,7 +262,7 @@ public partial class SettingsWindow : Window
             sp.Children.Add(new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 15, Width = 28, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(new TextBlock { Text = L.T(label), VerticalAlignment = VerticalAlignment.Center });
             var rb = new RadioButton { Content = sp, GroupName = "nav", Tag = key, Style = Res("Nav"), IsChecked = key == _page };
-            rb.Click += (_, _) => ShowPage(key);
+            rb.Click += (_, _) => { ShowPage(key); MovePill(rb, true); };
             NavHost.Children.Add(rb);
         }
     }
@@ -345,12 +346,59 @@ public partial class SettingsWindow : Window
         if (_pinStatus != null) _pinStatus.Text = App.Settings.Pinned ? "📌 " + L.T("Üstte sabit") : "";
     }
 
+    /// <summary>Seçim hapını seçili menü öğesinin üstüne kaydırır.</summary>
+    private void MovePill(RadioButton? rb, bool animate)
+    {
+        if (rb == null || !rb.IsLoaded) return;
+        try
+        {
+            double y = rb.TranslatePoint(new Point(0, 0), NavGrid).Y;
+            NavPill.Height = rb.ActualHeight;
+            if (!animate || !App.Settings.Animations)
+            {
+                NavPillMove.BeginAnimation(TranslateTransform.YProperty, null);
+                NavPillMove.Y = y;
+                return;
+            }
+            double from = NavPillMove.Y;
+            NavPillMove.BeginAnimation(TranslateTransform.YProperty,
+                new DoubleAnimation(from, y, TimeSpan.FromMilliseconds(320)) { EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut } });
+        }
+        catch { }
+    }
+
     /// <summary>Dışarıdan (ör. görev çubuğu menüsü) belirli bir sayfaya geç.</summary>
     public void GoTo(string key)
     {
         foreach (var rb in NavHost.Children.OfType<RadioButton>())
-            rb.IsChecked = (string?)rb.Tag == key;
+        {
+            bool sel = (string?)rb.Tag == key;
+            rb.IsChecked = sel;
+            if (sel) MovePill(rb, true);
+        }
         ShowPage(key);
+    }
+
+    /// <summary>Tek bir öğeyi gecikmeli olarak kayarak ve belirerek getirir (animasyon süresince bitmap önbelleği: kasmaz).</summary>
+    private static void AnimateIn(UIElement c, int index)
+    {
+        if (!App.Settings.Animations)
+        {
+            c.BeginAnimation(OpacityProperty, null);
+            c.Opacity = 1;
+            c.RenderTransform = null;
+            return;
+        }
+        var tt = new TranslateTransform(0, 16);
+        c.RenderTransform = tt;
+        c.Opacity = 0;
+        c.CacheMode = new BitmapCache();
+        var begin = TimeSpan.FromMilliseconds(Math.Min(index, 9) * 45);
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { BeginTime = begin };
+        fade.Completed += (_, _) => c.CacheMode = null;
+        c.BeginAnimation(OpacityProperty, fade);
+        tt.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(16, 0, TimeSpan.FromMilliseconds(340)) { BeginTime = begin, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
     }
 
     private void ShowPage(string key)
@@ -358,16 +406,16 @@ public partial class SettingsWindow : Window
         if (!_pages.TryGetValue(key, out var p)) return;
         _page = key;
         PageHost.Content = p;
-        p.Opacity = 0;
-        var slide = new TranslateTransform(0, 12);
-        p.RenderTransform = slide;
-        // Geçiş sırasında sayfa tek bir bitmap olarak taşınır: çok öğeli sayfalar (Platformlar, Kısayollar) kasmaz
-        p.CacheMode = new BitmapCache();
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(190));
-        fade.Completed += (_, _) => p.CacheMode = null;
-        p.BeginAnimation(OpacityProperty, fade);
-        slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
+        p.Opacity = 1;
+        p.RenderTransform = null;
+        p.CacheMode = null;
+
+        // Sayfanın üst düzey öğeleri (başlık, bölümler, gruplar) sırayla kayarak belirir
+        if (p is ScrollViewer sv && sv.Content is StackPanel sp)
+        {
+            int i = 0;
+            foreach (UIElement c in sp.Children) AnimateIn(c, i++);
+        }
     }
 
     // ================= Sayfalar =================
@@ -741,7 +789,7 @@ public partial class SettingsWindow : Window
         return wrap;
     }
 
-    private static void Hoverize(FrameworkElement hit, FrameworkElement target)
+    private static void Hoverize(FrameworkElement hit, FrameworkElement target, double scale = 1.05)
     {
         var sc = new ScaleTransform(1, 1);
         target.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -752,7 +800,7 @@ public partial class SettingsWindow : Window
             sc.BeginAnimation(ScaleTransform.ScaleXProperty, a);
             sc.BeginAnimation(ScaleTransform.ScaleYProperty, a);
         }
-        hit.MouseEnter += (_, _) => To(1.05);
+        hit.MouseEnter += (_, _) => To(scale);
         hit.MouseLeave += (_, _) => To(1.0);
     }
 
@@ -938,6 +986,7 @@ public partial class SettingsWindow : Window
             RefreshAccents();
             Collect();
         };
+        Hoverize(auto, auto, 1.18);
         _accentPanel.Children.Add(auto);
 
         foreach (var hex in Accents)
@@ -954,6 +1003,7 @@ public partial class SettingsWindow : Window
                 RefreshAccents();
                 Collect();
             };
+            Hoverize(b, b, 1.18);
             _accentPanel.Children.Add(b);
         }
     }
@@ -1074,10 +1124,19 @@ public partial class SettingsWindow : Window
         UpdateHotkeyStatus("");
         UpdateHotkeyText();
         _hotkeyBtns[a].Focus();
+        if (App.Settings.Animations)
+            _hotkeyBtns[a].BeginAnimation(OpacityProperty,
+                new DoubleAnimation(1, 0.45, TimeSpan.FromMilliseconds(550)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+    }
+
+    private void StopCapturePulse()
+    {
+        foreach (var b in _hotkeyBtns.Values) { b.BeginAnimation(OpacityProperty, null); b.Opacity = 1; }
     }
 
     private void EndCapture()
     {
+        StopCapturePulse();
         _capAction = null;
         App.Hotkey.RegisterAllFromSettings();
         UpdateHotkeyText();
@@ -1124,6 +1183,7 @@ public partial class SettingsWindow : Window
         bind.Key = ks;
         SettingsStore.Save(App.Settings);
 
+        StopCapturePulse();
         _capAction = null;
         App.Hotkey.RegisterAllFromSettings();
         UpdateHotkeyText();

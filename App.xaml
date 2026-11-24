@@ -214,8 +214,6 @@
                 <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SolidHoverBrush}"/>
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
-                <Setter TargetName="Ind" Property="Visibility" Value="Visible"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
               </Trigger>
             </ControlTemplate.Triggers>
@@ -285,8 +283,24 @@
         <Setter.Value>
           <ControlTemplate TargetType="Thumb">
             <Grid Background="Transparent">
-              <Ellipse Width="12" Height="12" Fill="{DynamicResource AccentBrush}"/>
+              <Ellipse x:Name="E" Width="12" Height="12" Fill="{DynamicResource AccentBrush}" RenderTransformOrigin="0.5,0.5"/>
             </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="E" Property="RenderTransform">
+                  <Setter.Value>
+                    <ScaleTransform ScaleX="1.25" ScaleY="1.25"/>
+                  </Setter.Value>
+                </Setter>
+              </Trigger>
+              <Trigger Property="IsDragging" Value="True">
+                <Setter TargetName="E" Property="RenderTransform">
+                  <Setter.Value>
+                    <ScaleTransform ScaleX="1.4" ScaleY="1.4"/>
+                  </Setter.Value>
+                </Setter>
+              </Trigger>
+            </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>

@@ -64,6 +64,11 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
 - Görev çubuğu kontrolü varsayılan olarak görev çubuğunun içine gömülür: Başlat menüsü (Windows tuşu) açılınca kaybolmaz.
   Gömme çalışmazsa kontrol kendiliğinden "üstte" yöntemine döner (Ayarlar > Görev çubuğu > "Görev çubuğunun içine göm")
 
+- Animasyonlar (Ayarlar > Stil ve görünüm > "Açılış / kapanıyor animasyonu" ile hepsi kapatılabilir): flyout yaylanarak açılır,
+  stil değişince içerik yaylanır, oynat düğmesi "pop" yapar ve çalarken parlaması nefes alır, kartın gölgesi üstüne
+  gelince büyür, iğne yaylanır; ayarlarda menü hapı seçilene kayar, sayfa öğeleri sırayla belirir, kaydırıcı topuzu büyür,
+  renk daireleri büyür, kısayol yakalanırken düğme nefes alır
+
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.
