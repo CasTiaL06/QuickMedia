@@ -20,9 +20,41 @@ public static class PlatformIcons
         var custom = TryCustom(id, size);
         if (custom != null) return custom;
 
+        var bmp = Cached(id, size);
+        if (bmp != null) return new Image { Source = bmp, Width = size, Height = size, SnapsToDevicePixels = true };
+
         var c = new Canvas { Width = 24, Height = 24 };
         try { Build(c, id); } catch { }
         return new Viewbox { Width = size, Height = size, Child = c };
+    }
+
+    private static readonly System.Collections.Generic.Dictionary<string, ImageSource> Bitmaps = new();
+
+    /// <summary>
+    /// Simgeyi bir kez 2x çözünürlükte bitmap'e çizip önbelleğe alır. Ayarlar sayfalarında her seferinde onlarca
+    /// şekilden oluşan çizim ağacı yerine tek bir resim kullanılır: sayfa geçişleri ve ilk çizim çok daha hafif olur.
+    /// </summary>
+    private static ImageSource? Cached(string id, double size)
+    {
+        string key = $"{id}:{(int)size}";
+        if (Bitmaps.TryGetValue(key, out var hit)) return hit;
+        try
+        {
+            var c = new Canvas { Width = 24, Height = 24 };
+            Build(c, id);
+            var vb = new Viewbox { Width = size, Height = size, Child = c };
+            vb.Measure(new Size(size, size));
+            vb.Arrange(new Rect(0, 0, size, size));
+            vb.UpdateLayout();
+            const double scale = 2;
+            int px = Math.Max(1, (int)Math.Ceiling(size * scale));
+            var rtb = new RenderTargetBitmap(px, px, 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            rtb.Render(vb);
+            rtb.Freeze();
+            Bitmaps[key] = rtb;
+            return rtb;
+        }
+        catch { return null; }
     }
 
     private static FrameworkElement? TryCustom(string id, double size)

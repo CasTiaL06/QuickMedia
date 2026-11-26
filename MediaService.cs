@@ -188,7 +188,7 @@ public sealed class MediaService
     /// <summary>Ayarlar (Gizle / Hep göster) değişince seçimi yeniden yapar.</summary>
     public void Repick()
     {
-        RefreshTabTitles();
+        if (App.Settings.UseTabTitle) System.Threading.Tasks.Task.Run(RefreshTabTitles);   // pencere taraması arayüzü bekletmesin
         Reevaluate();
     }
 
@@ -209,15 +209,19 @@ public sealed class MediaService
         try
         {
             if (!App.Settings.UseTabTitle) return;
-            bool changed = false;
+            // Ağır iş (pencere taraması) kilidin DIŞINDA yapılır; kilit yalnızca kısa süre tutulur
+            List<(Tracker T, MediaInfo I)> snapshot;
             lock (_gate)
+                snapshot = _trackers.Where(t => t.Info.HasSession && TabTitle.IsWeb(t.Info)).Select(t => (t, t.Info)).ToList();
+
+            bool changed = false;
+            foreach (var (t, i) in snapshot)
             {
-                foreach (var t in _trackers)
+                var (title, artist) = TabTitle.Resolve(i);
+                if (title == null) continue;
+                lock (_gate)
                 {
-                    var i = t.Info;
-                    if (!i.HasSession || !TabTitle.IsWeb(i)) continue;
-                    var (title, artist) = TabTitle.Resolve(i);
-                    if (title != null && title != t.TabTitle) { t.TabTitle = title; t.TabArtist = artist; changed = true; }
+                    if (title != t.TabTitle) { t.TabTitle = title; t.TabArtist = artist; changed = true; }
                 }
             }
             if (changed) Reevaluate();
@@ -251,8 +255,8 @@ public sealed class MediaService
             else ev = null;
 
             Current = pick;
-            if (ev != null && pick.HasSession) Log.Write($"Seçilen oturum: {pick.AppId} → {pick.PlatformId} · {pick.Title}");
         }
+        if (ev != null && pick.HasSession) Log.Write($"Seçilen oturum: {pick.AppId} → {pick.PlatformId} · {pick.Title}");   // disk yazımı kilidin dışında
         if (ev != null) Changed?.Invoke(pick, ev.Value);
     }
 

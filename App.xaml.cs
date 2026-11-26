@@ -42,6 +42,7 @@ public partial class App : Application
             ThemeManager.Apply(Settings);
 
             Media = new MediaService();
+            AppVolume.StartPolling(() => Media.Current.AppId);   // ses durumu arka planda okunur, arayüzü bekletmez
             Flyout = new FlyoutController(new FlyoutWindow());
             Taskbar = new TaskbarWidget();
 
@@ -96,7 +97,7 @@ public partial class App : Application
     public static void AdjustVolume(float delta, bool nudge = true)
     {
         string id = Media.Current.AppId;
-        var st = AppVolume.GetState(id);
+        var st = AppVolume.GetStateNow(id);   // kısayolda eşzamanlı oku
         if (st == null) return;
         if (delta > 0 && st.Value.Muted) AppVolume.SetMute(id, false);
         AppVolume.SetVolume(id, Math.Clamp(st.Value.Volume + delta, 0f, 1f));
@@ -118,10 +119,20 @@ public partial class App : Application
     /// <summary>"Yalnızca görev çubuğunda göster" etkin mi? (flyout hiç açılmaz)</summary>
     public static bool TaskbarOnly => Settings.UseTaskbar && Settings.TaskbarOnly;
 
+    private static string _themeSig = "";
+
+    /// <summary>Platform kuralı (Hep göster / Süreli / Gizle) değişince: tüm ayarları değil yalnızca seçimi yeniler.</summary>
+    public static void RulesChanged()
+    {
+        Media?.Repick();
+        Taskbar?.Refresh();
+    }
+
     public static void ApplyAll()
     {
         Media?.Repick();      // Gizle / Hep göster kuralları değişmiş olabilir: gösterilecek oturumu yeniden seç
-        ThemeManager.Apply(Settings);
+        string sig = $"{Settings.Theme}|{Settings.AccentColor}|{Settings.BackgroundOpacity:0.###}";
+        if (sig != _themeSig) { _themeSig = sig; ThemeManager.Apply(Settings); }   // yalnızca tema / renk / opaklık değiştiyse
         Flyout.ApplySettings();
         Taskbar?.Refresh();
         Applied?.Invoke();

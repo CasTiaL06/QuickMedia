@@ -31,6 +31,8 @@ public partial class SettingsWindow : Window
     private CheckBox _blur = null!, _anim = null!, _art = null!, _prog = null!, _ctrl = null!, _vol = null!, _badge = null!;
     private Slider _opacity = null!, _scale = null!;
     private CheckBox _tabTitle = null!, _tbEmbed = null!;
+    private TextBlock _tbStatus = null!;
+    private readonly System.Windows.Threading.DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private CheckBox _tbOn = null!, _tbSuppress = null!, _tbAuto = null!, _tbProgress = null!, _tbOnly = null!;
     private Slider _tbWidth = null!, _tbOffset = null!;
     private TextBlock _tbWidthText = null!, _tbOffsetText = null!;
@@ -61,13 +63,15 @@ public partial class SettingsWindow : Window
         SourceInitialized += (_, _) => ApplyTitleBar();
         App.Applied += OnApplied;
         App.Media.Changed += OnMedia;
-        Closed += (_, _) => { App.Applied -= OnApplied; App.Media.Changed -= OnMedia; if (_capAction != null) EndCapture(); };
+        Closed += (_, _) => { _statusTimer.Stop(); App.Applied -= OnApplied; App.Media.Changed -= OnMedia; if (_capAction != null) EndCapture(); };
 
         Step("Gezinme", BuildNav);
         Step("Denetimler", InitControls);
         BuildPages();
         Step("Alt bilgi", BuildFooter);
         Step("Yükleme", Load);
+        _statusTimer.Tick += (_, _) => { try { _tbStatus.Text = App.Taskbar?.Status ?? ""; } catch { } };
+        _statusTimer.Start();
         Step("Sayfa", () => ShowPage(_page));
         Dispatcher.InvokeAsync(() => MovePill(NavHost.Children.OfType<RadioButton>().FirstOrDefault(r => (string?)r.Tag == _page), false), System.Windows.Threading.DispatcherPriority.Loaded);
     }
@@ -380,8 +384,16 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>Tek bir öğeyi gecikmeli olarak kayarak ve belirerek getirir (animasyon süresince bitmap önbelleği: kasmaz).</summary>
-    private static void AnimateIn(UIElement c, int index)
+    private static void AnimateIn(UIElement c, int index, bool heavy = false)
     {
+        if (heavy && App.Settings.Animations)
+        {
+            // Çok öğeli büyük blok (platform listesi): önbellek/kayma yok, yalnızca hafif belirme
+            c.RenderTransform = null;
+            c.Opacity = 0;
+            c.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { BeginTime = TimeSpan.FromMilliseconds(Math.Min(index, 9) * 45) });
+            return;
+        }
         if (!App.Settings.Animations)
         {
             c.BeginAnimation(OpacityProperty, null);
@@ -414,7 +426,7 @@ public partial class SettingsWindow : Window
         if (p is ScrollViewer sv && sv.Content is StackPanel sp)
         {
             int i = 0;
-            foreach (UIElement c in sp.Children) AnimateIn(c, i++);
+            foreach (UIElement c in sp.Children) AnimateIn(c, i++, ReferenceEquals(c, _platformHost));
         }
     }
 
@@ -437,6 +449,7 @@ public partial class SettingsWindow : Window
         _art = Sw(); _prog = Sw(); _ctrl = Sw(); _vol = Sw(); _badge = Sw();
 
         _tabTitle = Sw(); _tbEmbed = Sw();
+        _tbStatus = new TextBlock { Style = Res("Hint"), TextAlignment = TextAlignment.Right, MaxWidth = 300, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         _tbOn = Sw(); _tbSuppress = Sw(); _tbAuto = Sw(); _tbProgress = Sw(); _tbOnly = Sw();
         _tbWidth = Sld(160, 420); _tbWidthText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _tbOffset = Sld(0, 800); _tbOffsetText = new TextBlock { Width = 52, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -557,6 +570,7 @@ public partial class SettingsWindow : Window
 
     private FrameworkElement PageTaskbar() => Page(
         PageHeader("Görev çubuğu", "QuickMedia'yı görev çubuğunun boş sol kısmında kullanın."),
+        Group(Row("Durum", "Kontrolün şu an görünüp görünmediği ve nedeni (sorun olursa bunu not edin).", _tbStatus, "\uE946")),
         Group(
             Row("Görev çubuğunda kullan", "Çalan şarkıyı görev çubuğunun sol tarafında küçük bir kontrol olarak gösterir. Tıklayınca flyout açılır, fare tekerleği çalan uygulamanın sesini değiştirir, sağ tık menü açar.", _tbOn, "\uE7C4"),
             Row("Yalnızca görev çubuğunda göster", "Flyout hiçbir zaman ekranda açılmaz; yalnızca görev çubuğundaki kontrol görünür. Kontrole tıklamak oynat/duraklat yapar, kısayol (Alt+P) kontrolü geçici olarak gizler / geri getirir.", _tbOnly, "\uE7C4"),
@@ -1054,7 +1068,7 @@ public partial class SettingsWindow : Window
                     rule.Mode = mode;
                     Refresh();
                     SettingsStore.Save(App.Settings);
-                    App.ApplyAll();          // gizlenen kaynak hemen flyout'tan kalksın
+                    App.RulesChanged();      // gizlenen kaynak hemen flyout'tan kalksın (tüm ayarları yeniden uygulamadan)
                 };
                 seg.Children.Add(rb);
             }

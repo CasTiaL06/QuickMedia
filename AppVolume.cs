@@ -122,8 +122,40 @@ public static class AppVolume
         return list;
     }
 
-    /// <summary>Uygulamanın ses oturumu bulunduysa (seviye 0..1, sessiz mi).</summary>
+    // ---- Önbellekli (arka plan) okuma: COM çağrıları arayüz thread'ini bekletmesin ----
+    private sealed record Snap(string Id, float Vol, bool Mute, DateTime At);
+    private static volatile Snap? _cache;
+    private static System.Threading.Timer? _poll;
+
+    /// <summary>Çalan uygulamanın ses durumunu arka planda ~0,7 sn'de bir okumaya başlar.</summary>
+    public static void StartPolling(Func<string> idProvider)
+    {
+        _poll = new System.Threading.Timer(_ =>
+        {
+            try
+            {
+                string id = idProvider();
+                if (string.IsNullOrEmpty(id)) { _cache = null; return; }
+                var l = Find(id);
+                if (l.Count == 0) { _cache = null; return; }
+                l[0].GetMasterVolume(out float v);
+                l[0].GetMute(out bool m);
+                _cache = new Snap(id, v, m, DateTime.Now);
+            }
+            catch { }
+        }, null, 400, 700);
+    }
+
+    /// <summary>Önbellekteki durum (hızlı; arayüz için). Henüz okunmadıysa null.</summary>
     public static (float Volume, bool Muted)? GetState(string appId)
+    {
+        var c = _cache;
+        if (c != null && c.Id == appId && (DateTime.Now - c.At).TotalSeconds < 4) return (c.Vol, c.Mute);
+        return null;
+    }
+
+    /// <summary>Eşzamanlı (yavaş olabilir): yalnızca kısayol gibi tek seferlik işlemlerde.</summary>
+    public static (float Volume, bool Muted)? GetStateNow(string appId)
     {
         var l = Find(appId);
         if (l.Count == 0) return null;
@@ -131,20 +163,67 @@ public static class AppVolume
         {
             l[0].GetMasterVolume(out float v);
             l[0].GetMute(out bool m);
+            _cache = new Snap(appId, v, m, DateTime.Now);
             return (v, m);
         }
         catch { return null; }
     }
 
+    // ---- Yazma: önbellek hemen güncellenir, gerçek ayar arka planda (birleştirilerek) uygulanır ----
+    private static readonly object ApplyGate = new();
+    private static string? _pendId;
+    private static float? _pendVol;
+    private static bool? _pendMute;
+    private static bool _applying;
+
+    private static void QueueApply(string id, float? vol, bool? mute)
+    {
+        lock (ApplyGate)
+        {
+            if (_pendId != id) { _pendVol = null; _pendMute = null; }
+            _pendId = id;
+            if (vol != null) _pendVol = vol;
+            if (mute != null) _pendMute = mute;
+            if (_applying) return;
+            _applying = true;
+        }
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            while (true)
+            {
+                string? pid; float? v; bool? m;
+                lock (ApplyGate)
+                {
+                    if (_pendId == null) { _applying = false; return; }
+                    pid = _pendId; v = _pendVol; m = _pendMute;
+                    _pendId = null; _pendVol = null; _pendMute = null;
+                }
+                var g = Guid.Empty;
+                foreach (var s in Find(pid))
+                {
+                    try
+                    {
+                        if (v != null) s.SetMasterVolume(Math.Clamp(v.Value, 0f, 1f), ref g);
+                        if (m != null) s.SetMute(m.Value, ref g);
+                    }
+                    catch { }
+                }
+            }
+        });
+    }
+
     public static void SetVolume(string appId, float v)
     {
-        var g = Guid.Empty;
-        foreach (var s in Find(appId)) { try { s.SetMasterVolume(Math.Clamp(v, 0f, 1f), ref g); } catch { } }
+        v = Math.Clamp(v, 0f, 1f);
+        var c = _cache;
+        _cache = new Snap(appId, v, c != null && c.Id == appId && c.Mute, DateTime.Now);
+        QueueApply(appId, v, null);
     }
 
     public static void SetMute(string appId, bool mute)
     {
-        var g = Guid.Empty;
-        foreach (var s in Find(appId)) { try { s.SetMute(mute, ref g); } catch { } }
+        var c = _cache;
+        _cache = new Snap(appId, c != null && c.Id == appId ? c.Vol : 0.5f, mute, DateTime.Now);
+        QueueApply(appId, null, mute);
     }
 }

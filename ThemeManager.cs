@@ -31,8 +31,16 @@ public static class ThemeManager
 
     private static Color C(string hex) => (Color)ColorConverter.ConvertFromString(hex);
 
-    private static void Set(string key, Color c) =>
-        Application.Current.Resources[key] = new SolidColorBrush(c);
+    /// <summary>
+    /// Fırçayı yerinde günceller: yeni nesne atamak, ona bağlı yüzlerce DynamicResource başvurusunun
+    /// (ayarlar sayfaları, flyout, görev çubuğu) yeniden çözülmesine ve arayüzün takılmasına yol açar.
+    /// </summary>
+    private static void Set(string key, Color c)
+    {
+        var res = Application.Current.Resources;
+        if (res[key] is SolidColorBrush b && !b.IsFrozen) b.Color = c;
+        else res[key] = new SolidColorBrush(c);
+    }
 
     /// <summary>Kullanıcı bir renk seçtiyse onu, yoksa temanın vurgu rengini döndürür.</summary>
     public static Color AccentOf(AppSettings s)

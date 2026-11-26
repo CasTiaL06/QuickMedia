@@ -69,6 +69,11 @@ ayarlar exe'nin yanındaki `settings.json`'da tutulur.
   gelince büyür, iğne yaylanır; ayarlarda menü hapı seçilene kayar, sayfa öğeleri sırayla belirir, kaydırıcı topuzu büyür,
   renk daireleri büyür, kısayol yakalanırken düğme nefes alır
 
+- Performans: ses durumu ve görev çubuğu konumu arka planda okunur (arayüz thread'i beklemez); tema renkleri yerinde
+  güncellenir; platform simgeleri bir kez bitmap'e çizilir; kural değişimi yalnızca seçimi yeniler
+- Görev çubuğu kontrolü dar alanda "kompakt" (yalnızca kapak + çubuklar) görünür; Ayarlar > Görev çubuğu > Durum'da
+  kontrolün neden görünür / görünmez olduğu yazar
+
 ## Notlar
 - Web siteleri (YouTube, Instagram...) tarayıcı pencere başlığına bakılarak tahmin edilir; arka plan sekmesinde
   çalan medya bazen "Diğer" olarak görünebilir.

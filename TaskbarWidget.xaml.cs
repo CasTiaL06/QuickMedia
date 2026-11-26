@@ -24,6 +24,7 @@ public partial class TaskbarWidget : Window
     private bool _hover;
     private bool _light;
     private bool _seeking;
+    private bool _compact;
     private int _miss;                 // üst üste "gösterme" kararı sayısı (kısa kesintilerde titreşmesin)
     private int _fsCount;              // üst üste "tam ekran" sayısı
     private double _lastDur;
@@ -35,12 +36,34 @@ public partial class TaskbarWidget : Window
     private (int, int, int, int) _lastRect;
     private Rect _rectDip;
 
-    private volatile Tuple<int, int>? _probe;        // son başarılı boş alan ölçümü
+    // Görev çubuğu dikdörtgeni: Windows'a (explorer'a) sormak arayüz thread'ini bekletebilir; arka planda yenilenir
+    private readonly object _tbGate = new();
+    private Native.RECT _tbRect;
+    private uint _tbEdge = 3;
+    private bool _tbKnown;
+    private bool _tbBusy;
+    private DateTime _tbStamp = DateTime.MinValue;
+
+    // Boş alan ölçümü (UI Automation): arka planda, son başarılı sonuç korunur
+    private volatile Tuple<int, int>? _probe;
     private DateTime _probeOk = DateTime.MinValue;
     private DateTime _probeStamp = DateTime.MinValue;
     private bool _probing;
 
+    // Gömme
+    private bool _embedded, _embedFailed;
+    private bool? _lastEmbedSetting;
+    private int _embedRetries;
+    private DateTime _embedFailedAt = DateTime.MinValue;
+    private IntPtr _embedParent;
+    private int _embedChecks;
+
+    // Z-sırası bekçisi (gömülü olmayan mod)
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private readonly DispatcherTimer _guard = new() { Interval = TimeSpan.FromMilliseconds(150) };
+    private DateTime _burstUntil = DateTime.MinValue;
+    private IntPtr _fgHook;
+    private Native.WinEventDelegate? _fgCb;
 
     // ses
     private bool _updatingVol;
@@ -48,13 +71,10 @@ public partial class TaskbarWidget : Window
     private readonly DispatcherTimer _popTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromMilliseconds(1300) };
 
-    // Z-sırası bekçisi: görev çubuğu öne geçerse kontrol neredeyse anında geri alınır
-    private readonly DispatcherTimer _guard = new() { Interval = TimeSpan.FromMilliseconds(150) };
-    private DateTime _burstUntil = DateTime.MinValue;
-    private IntPtr _fgHook;
-    private Native.WinEventDelegate? _fgCb;
-
     private static bool Anim => App.Settings.Animations;
+
+    /// <summary>Ayarlar penceresinde gösterilen kısa durum metni (neden görünür / görünmez).</summary>
+    public string Status { get; private set; } = "";
 
     /// <summary>"Yalnızca görev çubuğunda" modunda kısayolla geçici gizlenmiş mi?</summary>
     public bool UserHidden { get; private set; }
@@ -101,14 +121,15 @@ public partial class TaskbarWidget : Window
         Hit.MouseLeave += (_, _) => SetHover(false);
 
         // Gövdeye tıklama: yalnızca flyout modunda flyout'u açar. "Yalnızca görev çubuğu" modunda hiçbir şey yapmaz
-        // (yanlışlıkla müziği durdurmasın); oynat/duraklat için üstüne gelince çıkan düğme ya da orta tık kullanılır.
+        // (yanlışlıkla müziği durdurmasın); kompakt görünümde (kontrol düğmeleri yok) oynat/duraklat yapar.
         Hit.MouseLeftButtonUp += (_, e) =>
         {
             if (e.Handled) return;
             for (DependencyObject? d = e.OriginalSource as DependencyObject; d != null && d != Hit;
                  d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
                 if (d is ButtonBase) return;
-            if (!App.TaskbarOnly) App.Flyout.Toggle(_rectDip);
+            if (App.TaskbarOnly) { if (_compact) App.Media.TogglePlay(); }
+            else App.Flyout.Toggle(_rectDip);     // flyout kontrolün hemen üstünden açılır
         };
         Hit.MouseDown += (_, e) =>
         {
@@ -172,6 +193,37 @@ public partial class TaskbarWidget : Window
 
     // ================= Görünürlük / yerleşim =================
 
+    private void SetStatus(string tr) => Status = L.T(tr);
+
+    /// <summary>Görev çubuğu dikdörtgeni: önbellekten okunur, 2 sn'de bir arka planda yenilenir (arayüz bekletilmez).</summary>
+    private bool GetTaskbarCached(out Native.RECT rc, out uint edge)
+    {
+        lock (_tbGate)
+        {
+            if (!_tbKnown)
+            {
+                _tbKnown = Native.GetTaskbar(out _tbRect, out _tbEdge);   // yalnızca ilk seferde eşzamanlı
+                _tbStamp = DateTime.Now;
+            }
+            else if (!_tbBusy && (DateTime.Now - _tbStamp).TotalSeconds > 2)
+            {
+                _tbBusy = true;
+                _tbStamp = DateTime.Now;
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        if (Native.GetTaskbar(out var r, out var e)) lock (_tbGate) { _tbRect = r; _tbEdge = e; }
+                    }
+                    finally { _tbBusy = false; }
+                });
+            }
+            rc = _tbRect;
+            edge = _tbEdge;
+            return _tbKnown;
+        }
+    }
+
     /// <summary>Ayar ve medya durumuna göre gösterir, gizler, yerleştirir (yaklaşık saniyede iki kez).</summary>
     public void Refresh()
     {
@@ -182,31 +234,36 @@ public partial class TaskbarWidget : Window
 
             // Kullanıcı kapattıysa / gizlediyse hemen kaybol; geçici durumlarda (medya boşluğu, tam ekran, ölçüm)
             // birkaç tur bekle: aksi halde kontrol "açılıp kapanıyor" gibi görünür.
-            if (!s.UseTaskbar || UserHidden) { _miss = 0; SlideOut(); return; }
+            if (!s.UseTaskbar) { _miss = 0; SetStatus("Kapalı"); SlideOut(); return; }
+            if (UserHidden) { _miss = 0; SetStatus("Gizli: kısayolla gizlendi"); SlideOut(); return; }
 
-            bool media = FlyoutController.HasDisplayable(App.Media.Current);
             // Tam ekran: pencere tabanlı algılama (tarayıcıda tam ekran video dahil) güvenilir; anında gizle.
             // Windows'un "meşgul" bildirimi bazen anlık takılır: onu birkaç tur üst üste görmeden gizleme.
             bool strong = s.HideInFullscreen && Native.ForegroundCoversMonitor();
             bool weak = s.HideInFullscreen && Native.IsNotificationBusy();
             _fsCount = weak ? _fsCount + 1 : 0;
-            if (strong) { _miss = 0; SlideOut(); return; }
+            if (strong) { _miss = 0; SetStatus("Gizli: tam ekran"); SlideOut(); return; }
 
-            Native.RECT rc = default;
-            bool tbOk = Native.GetTaskbar(out rc, out uint edge) && (edge == 1 || edge == 3);
-
+            bool media = FlyoutController.HasDisplayable(App.Media.Current);
+            bool tbOk = GetTaskbarCached(out var rc, out uint edge) && (edge == 1 || edge == 3);
             var dpi = VisualTreeHelper.GetDpi(this);
             double sx = dpi.DpiScaleX, sy = dpi.DpiScaleY;
 
+            string? why = null;
             (int X, int W)? area = null;
-            if (tbOk)
+            if (!media) why = "Gizli: gösterilecek medya yok";
+            else if (_fsCount >= 3) why = "Gizli: tam ekran";
+            else if (!tbOk) why = "Gizli: görev çubuğu alt/üst değil";
+            else
             {
                 if (s.TaskbarAuto) StartProbe(rc);
                 area = ComputeArea(rc, sx);
+                if (area == null) why = "Gizli: boş alan yok";
             }
 
-            if (!media || _fsCount >= 3 || !tbOk || area == null)
+            if (why != null)
             {
+                SetStatus(why);
                 if (++_miss >= 3) SlideOut();
                 return;
             }
@@ -215,10 +272,16 @@ public partial class TaskbarWidget : Window
             UpdateColors();
             Update(App.Displayed);
             SlideIn();
+            bool compact = area!.Value.W < (int)Math.Round(170 * sx);
+            SetCompact(compact);
             Place(rc, area.Value.X, area.Value.W, sx, sy);
             UpdateProgress();
             SyncVolume();
             UpdateEq(App.Displayed.IsPlaying);
+
+            Status = $"{L.T("Görünür")} · {L.T(_embedded ? "gömülü" : "üstte")}" +
+                     (compact ? " · " + L.T("kompakt") : "") +
+                     $" · {area.Value.W}px · {L.T(s.TaskbarAuto && _probe != null ? "otomatik" : "elle")}";
         }
         catch (Exception ex) { Log.Write("Görev çubuğu kontrolü hatası: " + ex.Message); }
     }
@@ -227,6 +290,7 @@ public partial class TaskbarWidget : Window
     {
         var s = App.Settings;
         int userW = (int)Math.Round(Math.Clamp(s.TaskbarWidth, 160, 600) * sx);
+        int minW = (int)Math.Round(56 * sx);    // bunun altına sığmıyorsa hiç gösterme
 
         // Son başarılı ölçüm 2 dakika boyunca geçerli: ölçüm bir an başarısız olsa da kontrol zıplamaz
         if (s.TaskbarAuto && _probe is { } p && (DateTime.Now - _probeOk).TotalSeconds < 120)
@@ -234,7 +298,7 @@ public partial class TaskbarWidget : Window
             int x = p.Item1 + (int)Math.Round(8 * sx);
             int avail = p.Item2 - p.Item1 - (int)Math.Round(20 * sx);
             int w = Math.Min(userW, avail);
-            return w < (int)Math.Round(110 * sx) ? null : (x, w);
+            return w < minW ? null : (x, w);   // dar alanda kompakt görünüm (kapak + çubuklar) kullanılır
         }
         return (rc.left + (int)Math.Round(s.TaskbarOffset * sx), userW);
     }
@@ -259,9 +323,18 @@ public partial class TaskbarWidget : Window
         });
     }
 
-    private bool _embedded, _embedFailed;
-    private IntPtr _embedParent;
-    private int _embedChecks;
+    /// <summary>Dar alanda: yalnızca kapak + ses çubukları; geniş alanda tam görünüm.</summary>
+    private void SetCompact(bool c)
+    {
+        if (_compact == c) return;
+        _compact = c;
+        TextHost.Visibility = c ? Visibility.Collapsed : Visibility.Visible;
+        CtlPanel.Visibility = c ? Visibility.Collapsed : Visibility.Visible;
+        Art.Margin = c ? new Thickness(0) : new Thickness(0, 0, 9, 0);
+        RightHost.MinWidth = c ? 0 : 88;
+        RightHost.Margin = c ? new Thickness(8, 0, 2, 0) : new Thickness(8, 0, 0, 0);
+        if (c) ShowVolPop(false);
+    }
 
     private void Place(Native.RECT rc, int x, int wpx, double sx, double sy)
     {
@@ -276,7 +349,12 @@ public partial class TaskbarWidget : Window
 
         // Gömülü mod: kontrol görev çubuğunun alt penceresi olur. Başlat menüsü / arama açılınca Windows görev çubuğunu
         // daha üst bir katmana alır; "üstte duran" pencereler arkada kalıp kaybolur, gömülü olan ise görev çubuğuyla birlikte kalır.
-        bool wantEmbed = App.Settings.TaskbarEmbed && !_embedFailed;
+        var s = App.Settings;
+        if (_lastEmbedSetting != s.TaskbarEmbed) { _lastEmbedSetting = s.TaskbarEmbed; _embedFailed = false; _embedRetries = 0; }
+        // Başarısız bir deneme kalıcı sayılmaz: 60 sn sonra (en fazla 3 kez) yeniden denenir
+        if (_embedFailed && _embedRetries < 3 && (DateTime.Now - _embedFailedAt).TotalSeconds > 60) { _embedFailed = false; _embedRetries++; }
+
+        bool wantEmbed = s.TaskbarEmbed && !_embedFailed;
         var tb = Native.FindTaskbarWindow();
         if (wantEmbed && tb != IntPtr.Zero)
         {
@@ -310,6 +388,7 @@ public partial class TaskbarWidget : Window
             else
             {
                 _embedFailed = true;
+                _embedFailedAt = DateTime.Now;
                 Native.Unembed(_hwnd);
                 Log.Write("Görev çubuğuna gömme başarısız oldu; üstte yöntemi kullanılıyor");
             }
@@ -318,6 +397,7 @@ public partial class TaskbarWidget : Window
         {
             _embedded = false;
             _embedFailed = true;
+            _embedFailedAt = DateTime.Now;
             Log.Write("Gömme hatası: " + ex.Message);
         }
     }
@@ -330,10 +410,10 @@ public partial class TaskbarWidget : Window
         _lastRect = default;
     }
 
-    /// <summary>Gömme sonrası ilk birkaç turda kontrolün gerçekten görünür olduğunu doğrular; değilse eski yönteme döner.</summary>
+    /// <summary>Gömme sonrası ilk birkaç turda (belirme animasyonu bittikten sonra) kontrolün görünür olduğunu doğrular.</summary>
     private void VerifyEmbed(int cx, int cy)
     {
-        if (_embedChecks <= 0 || !IsVisible) return;
+        if (_embedChecks <= 0 || !IsVisible || Opacity < 0.99) return;   // belirirken fare testi şeffaf sayılır: bekle
         _embedChecks--;
         if (Native.WindowAt(cx, cy) == _hwnd) { _embedChecks = 0; return; }
         Native.RaiseChild(_hwnd);
@@ -341,6 +421,7 @@ public partial class TaskbarWidget : Window
         if (_embedChecks == 0)
         {
             _embedFailed = true;
+            _embedFailedAt = DateTime.Now;
             Unembed();
             Log.Write("Gömülü kontrol görünmedi; üstte yöntemine dönüldü");
         }
@@ -370,6 +451,7 @@ public partial class TaskbarWidget : Window
         Shift.BeginAnimation(TranslateTransform.XProperty, null);
         Opacity = 0;
         if (!IsVisible) Show();
+        _lastRect = default;     // gizlenip yeniden gösterilince konum / görünürlük bir kez daha kesin olarak uygulansın
 
         if (!Anim) { Opacity = 1; Shift.X = 0; return; }
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
@@ -467,21 +549,24 @@ public partial class TaskbarWidget : Window
 
     private void RefreshMarquee()
     {
+        if (_compact) return;
         SetupMarquee(TitleClip, TitleText, TitleMove);
         SetupMarquee(SubClip, SubText, SubMove);
     }
 
-    // ================= Ses (yalnızca çalan uygulamanın sesi) =================
+    // ================= Ses (yalnızca çalan uygulamanın sesi; durum arka planda okunur) =================
 
     private void ShowVolPop(bool on)
     {
+        if (on && _compact) return;
         VolPop.IsHitTestVisible = on;
         VolPop.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, TimeSpan.FromMilliseconds(Anim ? 130 : 1)));
     }
 
-    /// <summary>Kaydırıcıyı ve ses düğmesini çalan uygulamanın gerçek durumuyla eşitler.</summary>
+    /// <summary>Kaydırıcıyı ve ses düğmesini çalan uygulamanın durumuyla eşitler (önbellekten: arayüzü bekletmez).</summary>
     private void SyncVolume()
     {
+        if (_compact) return;
         var cur = App.Displayed;
         var st = cur.HasSession ? AppVolume.GetState(cur.AppId) : null;
         bool ok = st != null;
@@ -516,6 +601,7 @@ public partial class TaskbarWidget : Window
     /// <summary>Tekerlekle ses değişince alt satırda kısa süre "Ses %45" gösterir.</summary>
     private void ToastVolume()
     {
+        if (_compact) return;
         var cur = App.Displayed;
         var st = cur.HasSession ? AppVolume.GetState(cur.AppId) : null;
         if (st == null) return;
@@ -552,7 +638,7 @@ public partial class TaskbarWidget : Window
         ProgressFill.BeginAnimation(WidthProperty, null);
         ProgressFill.Width = ProgressTrack.ActualWidth * ratio;
         MoveKnob();
-        if (_lastDur > 0) SubText.Text = $"{Fmt(_lastDur * ratio)} / {Fmt(_lastDur)}";   // hedef zaman
+        if (_lastDur > 0 && !_compact) SubText.Text = $"{Fmt(_lastDur * ratio)} / {Fmt(_lastDur)}";   // hedef zaman
     }
 
     private void RestoreSub()
